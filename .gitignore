@@ -218,3 +218,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Iteron: build output, filled from branding/addon/ by tools/build.py
+iteron/icons/

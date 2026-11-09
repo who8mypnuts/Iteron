@@ -1,0 +1,947 @@
+{
+ "format": "fa3d",
+ "version": 1,
+ "scene": {
+  "name": "3d musk sphere",
+  "fractal": {
+   "name": "3d musk sphere",
+   "camera": {
+    "center": [
+     0.582,
+     -0.97
+    ],
+    "scale": 312.08,
+    "zoom": 0.0,
+    "rotate": -0.0,
+    "width": 900,
+    "height": 1800,
+    "pitch": 1.06377817909054,
+    "yaw": -0.529707427980279,
+    "perspective": 0.2,
+    "zpos": 0.0,
+    "dof": 0.0,
+    "pitch_y": 0.0
+   },
+   "coloring": {
+    "brightness": 9.70869565217391,
+    "gamma": 2.61,
+    "gamma_threshold": 0.09,
+    "vibrancy": 1.0,
+    "contrast": 1.0,
+    "background": [
+     0,
+     0,
+     0
+    ],
+    "curves": {}
+   },
+   "palette": [
+    "d8c581",
+    "d9ce90",
+    "e5d0b1",
+    "dbeedb",
+    "fbffee",
+    "effce0",
+    "ddebad",
+    "e3eb98",
+    "e5db84",
+    "dbd682",
+    "d4ce7a",
+    "ccc374",
+    "aca87b",
+    "979c7c",
+    "758062",
+    "5e614c",
+    "4b533e",
+    "494e47",
+    "535458",
+    "696661",
+    "85885b",
+    "979a4d",
+    "a3a24f",
+    "a8ad49",
+    "94bc59",
+    "48b341",
+    "33a631",
+    "2b991e",
+    "25971e",
+    "20961e",
+    "13810e",
+    "13800d",
+    "1d8b12",
+    "1a8513",
+    "364d23",
+    "3d4b28",
+    "2c312d",
+    "1f2c22",
+    "1c180f",
+    "182104",
+    "2e2a04",
+    "373819",
+    "39401e",
+    "575e34",
+    "666434",
+    "737136",
+    "6d7232",
+    "4b503c",
+    "55583e",
+    "606141",
+    "747443",
+    "888746",
+    "8d9147",
+    "939c49",
+    "b1af58",
+    "b7b45b",
+    "beba5f",
+    "c3bf65",
+    "c8c46b",
+    "c9c36e",
+    "cac372",
+    "c8c671",
+    "c7ca71",
+    "c7c368",
+    "c2bf64",
+    "bdbc60",
+    "b5b459",
+    "adad53",
+    "a1a24b",
+    "959744",
+    "40a430",
+    "40a432",
+    "40a434",
+    "558645",
+    "6a6957",
+    "6b6d4c",
+    "6c7242",
+    "80863e",
+    "838b3e",
+    "acac52",
+    "b3b15a",
+    "bbb662",
+    "bebb64",
+    "c1c167",
+    "c1be65",
+    "c2bc64",
+    "bbbc5e",
+    "acac53",
+    "9d9c49",
+    "88883d",
+    "747531",
+    "605e2a",
+    "4c4823",
+    "464225",
+    "373c26",
+    "55614b",
+    "7b8156",
+    "a2a262",
+    "b1b064",
+    "c0be67",
+    "c5c26a",
+    "cac66d",
+    "dadc79",
+    "e3de8c",
+    "ece19f",
+    "f5e7b0",
+    "feedc1",
+    "f7e6b8",
+    "f0e0af",
+    "ead5aa",
+    "e1d583",
+    "ccc86f",
+    "d2cd76",
+    "d9d37d",
+    "ddd584",
+    "e1d88b",
+    "ead9a5",
+    "ffeddf",
+    "ffe9e1",
+    "f1e0ba",
+    "e4d793",
+    "d6ce7f",
+    "c9c56c",
+    "c1bd65",
+    "b9b55e",
+    "9b9e4d",
+    "747e42",
+    "133119",
+    "122b22",
+    "12252b",
+    "1d2d30",
+    "293535",
+    "45543f",
+    "5baa5b",
+    "94db8d",
+    "a9cc7a",
+    "bebe68",
+    "c1c067",
+    "c4c367",
+    "c4c367",
+    "c5c467",
+    "c5c467",
+    "c5c467",
+    "c6c666",
+    "c7c767",
+    "c8c868",
+    "c7c867",
+    "c7c966",
+    "c7c767",
+    "c7c767",
+    "c4c367",
+    "c2c064",
+    "c1bd62",
+    "c0b95e",
+    "c0b55b",
+    "b6b55b",
+    "b3b258",
+    "a6a64e",
+    "979945",
+    "9e9d4a",
+    "a6a551",
+    "aeae58",
+    "b9ba5c",
+    "bcbe5d",
+    "c3bf64",
+    "c4c366",
+    "c1c167",
+    "c3c166",
+    "c5c166",
+    "c4c165",
+    "c3c265",
+    "c4c367",
+    "c4c367",
+    "c5c467",
+    "c5c467",
+    "cbc76e",
+    "ccc671",
+    "cec675",
+    "d4c67f",
+    "d8cb87",
+    "e6d5a1",
+    "f8e0c4",
+    "f2f7fd",
+    "f8fbfa",
+    "fffff7",
+    "fefff5",
+    "fdfff4",
+    "fdfff2",
+    "f6f2e6",
+    "ead5aa",
+    "dbd388",
+    "cbc86b",
+    "ccca6a",
+    "cdcd69",
+    "cdcf6c",
+    "bedb6d",
+    "d8f179",
+    "dee57b",
+    "d5dc75",
+    "d0d672",
+    "ccd06f",
+    "ccd06f",
+    "dee57b",
+    "e9db90",
+    "eadba2",
+    "e5d49e",
+    "e2d18b",
+    "cec47f",
+    "cec37c",
+    "cfc379",
+    "c4bd6c",
+    "c1ba69",
+    "c0b76a",
+    "a0a378",
+    "8b9155",
+    "8e9762",
+    "929e70",
+    "7e8b79",
+    "65c16a",
+    "5cbf6d",
+    "52b348",
+    "41a833",
+    "359e27",
+    "359c26",
+    "3f5b32",
+    "474f38",
+    "4c4f34",
+    "4a5533",
+    "4c592d",
+    "2e9319",
+    "399e28",
+    "3ea22d",
+    "43a733",
+    "919848",
+    "a5a54f",
+    "b4b359",
+    "b6bb5f",
+    "bdbe61",
+    "c3bc6b",
+    "bdc480",
+    "90d5a6",
+    "95dbc3",
+    "ade6e0",
+    "c5ddab",
+    "b7c69b",
+    "cbc281",
+    "cdc475",
+    "cbc770",
+    "cbc869",
+    "c8c868",
+    "c7c767",
+    "c6c568",
+    "c9c56c",
+    "c9c56c",
+    "cec576",
+    "d0c47a"
+   ],
+   "xforms": [
+    {
+     "weight": 0.5,
+     "color": 0.052,
+     "color_speed": 0.009000000000000008,
+     "opacity": 0.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "variations": {
+      "ztranslate": 3.929,
+      "zcone": 0.159,
+      "julia3D": -0.353
+     },
+     "params": {
+      "julia3D_power": 4.0
+     },
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.5,
+     "color": 0.0,
+     "color_speed": 0.09999999999999998,
+     "opacity": 1.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      0.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "variations": {
+      "linear": 1.0
+     },
+     "params": {},
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.5,
+     "color": 0.0,
+     "color_speed": 0.09999999999999998,
+     "opacity": 1.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      -1.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "variations": {
+      "linear": 1.0
+     },
+     "params": {},
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.5,
+     "color": 0.0,
+     "color_speed": 0.09999999999999998,
+     "opacity": 1.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      -1.0,
+      0.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "variations": {
+      "linear": 1.0
+     },
+     "params": {},
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.5,
+     "color": 0.0,
+     "color_speed": 0.09999999999999998,
+     "opacity": 1.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      1.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "variations": {
+      "linear": 1.0
+     },
+     "params": {},
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.5,
+     "color": 0.0,
+     "color_speed": 0.08000000000000002,
+     "opacity": 1.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "variations": {
+      "Spherical3D": 1.0
+     },
+     "params": {},
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.175,
+     "color": 0.494,
+     "color_speed": 0.14,
+     "opacity": 0.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.5,
+      -0.5
+     ],
+     "variations": {
+      "julian": 0.14
+     },
+     "params": {
+      "julian_power": 4.0,
+      "julian_dist": 1.999
+     },
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.181,
+     "color": 0.182,
+     "color_speed": 0.04799999999999999,
+     "opacity": 0.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      -1.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.5,
+      -0.5
+     ],
+     "variations": {
+      "zblur": 0.659,
+      "blur3D": 0.021,
+      "ztranslate": 3.317
+     },
+     "params": {},
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.187,
+     "color": 1.0,
+     "color_speed": 0.04799999999999999,
+     "opacity": 0.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.5,
+      -0.5
+     ],
+     "variations": {
+      "blur3D": 0.094,
+      "ztranslate": 4.322
+     },
+     "params": {},
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    },
+    {
+     "weight": 0.038,
+     "color": 0.416,
+     "color_speed": 0.04799999999999999,
+     "opacity": 0.0,
+     "coefs": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "post": [
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      0.5,
+      -0.5
+     ],
+     "variations": {
+      "blur3D": 0.094,
+      "ztranslate": 2.483
+     },
+     "params": {},
+     "chaos": null,
+     "name": "",
+     "var_color": 1.0
+    }
+   ],
+   "final": {
+    "weight": 0.5,
+    "color": 0.0,
+    "color_speed": 0.0,
+    "opacity": 1.0,
+    "coefs": [
+     1.0,
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    "post": [
+     1.0,
+     0.0,
+     0.0,
+     1.0,
+     0.0,
+     0.0
+    ],
+    "variations": {
+     "curl3D": 1.0
+    },
+    "params": {
+     "curl3D_cx": -0.094,
+     "curl3D_cy": 0.294,
+     "curl3D_cz": 0.096
+    },
+    "chaos": null,
+    "name": "",
+    "var_color": 1.0
+   },
+   "unsupported": [],
+   "oversample": 1,
+   "filter_radius": 0.5
+  },
+  "follow_main": false,
+  "solid": {
+   "ao": true,
+   "ao_radius": 0.04,
+   "ao_intensity": 0.8,
+   "ao_samples": 16,
+   "ao_falloff": 1.0,
+   "normal_smoothing": 1.0,
+   "min_hits": 4,
+   "fog": false,
+   "fog_start": 0.3,
+   "fog_end": 1.0,
+   "fog_color": [
+    30,
+    32,
+    40
+   ],
+   "display": "solid",
+   "show_fractal": true
+  },
+  "materials": [
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   },
+   {
+    "diffuse": 0.8,
+    "ambient": 0.25,
+    "specular": 0.35,
+    "shininess": 24.0,
+    "specular_color": [
+     255,
+     255,
+     255
+    ],
+    "color_mode": "palette",
+    "color": [
+     200,
+     200,
+     200
+    ],
+    "wrap": 0.0
+   }
+  ],
+  "lights": [
+   {
+    "altitude": 55.0,
+    "azimuth": -22.0,
+    "color": [
+     255,
+     255,
+     255
+    ],
+    "intensity": 0.68,
+    "shadows": true,
+    "shadow_intensity": 0.7,
+    "shadow_softness": 1.5,
+    "kind": "point",
+    "position": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "radius": 1.0
+   },
+   {
+    "altitude": 30.0,
+    "azimuth": 150.0,
+    "color": [
+     221,
+     219,
+     226
+    ],
+    "intensity": 0.26,
+    "shadows": true,
+    "shadow_intensity": 0.7,
+    "shadow_softness": 1.5,
+    "kind": "distant",
+    "position": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "radius": 1.0
+   }
+  ],
+  "environment": {
+   "color": [
+    2,
+    2,
+    3
+   ],
+   "ambient": 0.46,
+   "exposure": 1.0,
+   "visible": true,
+   "hdri": "",
+   "hdri_rotation": 0.0,
+   "hdri_strength": 1.0,
+   "hdri_blur": 0.0,
+   "hdri_background": true
+  },
+  "mesh": {
+   "points": 1000000,
+   "resolution": 128,
+   "threshold": 0.15,
+   "smoothing": 1.0,
+   "dilate": 0,
+   "erode": 0,
+   "colors": true,
+   "clean": "simple",
+   "min_piece_faces": 50,
+   "fill_holes": 200,
+   "smooth_iterations": 4,
+   "target_faces": 200000,
+   "seed": 1
+  },
+  "export": {
+   "subject": "mesh",
+   "form": "clean",
+   "formats": [
+    "glb"
+   ],
+   "materials": "vertex",
+   "uv_mode": "box",
+   "texture_size": 1024,
+   "units": "world",
+   "size_mm": 100.0,
+   "blender": true,
+   "report": true,
+   "folder": "",
+   "name": ""
+  },
+  "assets": [],
+  "instancers": []
+ }
+}
