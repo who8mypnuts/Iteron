@@ -16,7 +16,7 @@ from pathlib import Path
 
 import bpy
 
-from ..core.formula import REGISTRY
+from ..core.formula import concrete
 
 FORMAT = "iteron-preset"
 VERSION = 1
@@ -52,12 +52,14 @@ def save(formula_id: str, name: str, values: dict) -> Path:
     return path
 
 
-def load(formula_id: str, name: str) -> dict:
-    path = folder(formula_id) / f"{file_name(name)}.json"
+def load(entry, name: str) -> dict:
+    """A saved preset of `entry` (a formula or a fragment), checked against its parameters."""
+    path = folder(entry.id) / f"{file_name(name)}.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    if data.get("format") != FORMAT or data.get("formula") != formula_id:
-        raise ValueError(f"{path.name} is not an Iteron preset for {formula_id}")
-    params = {p.name: p for p in REGISTRY[formula_id].params}
+    if data.get("format") != FORMAT or data.get("formula") != entry.id:
+        raise ValueError(f"{path.name} is not an Iteron preset for {entry.id}")
+    entry = concrete(entry, {k: v for k, v in data.get("values", {}).items() if k in (entry.stored or ())})
+    params = {p.name: p for p in entry.params}                  # (a hybrid: the parts the preset was saved with)
     return {k: params[k].coerce(v) for k, v in data.get("values", {}).items() if k in params}
 
 

@@ -49,7 +49,10 @@ class KernelSource:
 
 
 def kernel_source(entry: Formula, values: dict[str, Any]) -> KernelSource:
-    """Trace `entry` (with its static parameters taken from `values`) into GLSL."""
+    """Trace `entry` (with its static parameters taken from `values`) into GLSL. An entry that is GLSL already (a
+    fragment) gives its own."""
+    if hasattr(entry, "kernel_source"):
+        return entry.kernel_source(values)
     tracer = Tracer()
     with tracing(tracer):
         channels = kernel(entry, S("vec3", "pos"), symbolic_values(entry, values))

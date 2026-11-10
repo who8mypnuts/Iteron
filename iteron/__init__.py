@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import importlib
 
-MODULES = ("prefs", "ui.icons", "bridge.props", "bridge.state", "bridge.colors",
-           "ops.add", "ops.build", "ops.presets", "ops.apply", "ops.region",
-           "ui.panel", "ui.menus", "jobs.scheduler")
+MODULES = ("prefs", "ui.icons", "bridge.animation", "bridge.flame_props", "bridge.fragment_props", "bridge.props",
+           "bridge.state", "bridge.colors", "bridge.display", "ops.add", "ops.build", "ops.presets", "ops.apply",
+           "ops.region", "ops.importer", "ops.fragments", "ops.bake", "ui.panel", "ui.menus", "ui.overlay",
+           "jobs.scheduler")
 
 
 def _modules():

@@ -12,7 +12,7 @@ import pytest
 
 import iteron.formulas  # noqa: F401
 from iteron.core import cpu_eval
-from iteron.core.formula import REGISTRY
+from iteron.core.formula import REGISTRY, concrete
 from iteron.core.grid import cube_plan
 
 from .gl_harness import context, sample
@@ -37,6 +37,7 @@ def _cases():
 @pytest.mark.parametrize("fid,preset", list(_cases()))
 def test_gpu_matches_cpu(ctx, fid, preset):
     entry = REGISTRY[fid]
+    entry = concrete(entry, entry.presets[preset])
     values = entry.values(entry.presets[preset])
     plan = cube_plan((0.0, 0.0, 0.0), entry.bounds, 20)
     gpu = sample(ctx, entry, values, plan)

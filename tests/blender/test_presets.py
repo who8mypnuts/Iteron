@@ -8,6 +8,7 @@ import pytest
 import bpy
 from iteron.bridge import presets
 from iteron.bridge.props import group, read_values
+from iteron.core.formula import REGISTRY
 
 
 @pytest.fixture(autouse=True)
@@ -42,4 +43,16 @@ def test_a_preset_for_another_formula_is_refused(preset_folder):
     (preset_folder / "menger_sponge").mkdir()
     (preset_folder / "menger_sponge" / "Bulb.json").write_text((preset_folder / "mandelbulb" / "Bulb.json").read_text())
     with pytest.raises(ValueError):
-        presets.load("menger_sponge", "Bulb")
+        presets.load(REGISTRY["menger_sponge"], "Bulb")
+
+
+def test_a_hybrid_preset_brings_back_its_parts(fractal):
+    obj = fractal("hybrid", resolution=24)
+    bpy.ops.iteron.apply_preset(preset="Bulb + Menger")
+    group(obj.iteron, "menger_sponge").offset = (1.0, 0.6, 1.0)
+    bpy.ops.iteron.save_preset(name="Towers")
+    bpy.ops.iteron.apply_preset(preset="Bulb + Box")
+    group(obj.iteron, "menger_sponge").offset = (1.0, 1.0, 1.0)
+    bpy.ops.iteron.apply_preset(preset=presets.USER_PREFIX + "Towers")
+    assert group(obj.iteron).second == "menger_sponge"
+    assert tuple(group(obj.iteron, "menger_sponge").offset) == pytest.approx((1.0, 0.6, 1.0))

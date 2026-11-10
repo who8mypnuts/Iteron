@@ -7,6 +7,7 @@ import pytest
 
 import bpy
 from iteron.bridge import colors, material
+from iteron.bridge.props import locate
 from iteron.core.formula import REGISTRY
 from iteron.ui import menus, panel
 
@@ -78,7 +79,7 @@ def test_fractal_panel_draws_every_parameter(fractal, fid):
     log = []
     panel.draw_fractal(FakeLayout(log), obj)
     shown = {name for kind, name in log if kind == "prop"}
-    assert {p.name for p in REGISTRY[fid].params} <= shown
+    assert {locate(obj.iteron, p.name)[1] for p in REGISTRY[fid].params} <= shown      # (a hybrid: its parts' own)
     assert ("ramp", material.RAMP_NODE) in log and ("operator", "iteron.build_final") in log
 
 

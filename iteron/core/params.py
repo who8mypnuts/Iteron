@@ -79,6 +79,33 @@ class Vec3(Param):
 
 
 @dataclass(frozen=True)
+class Vec2(Vec3):
+    """Two floats (fragments' `vec2` uniforms)."""
+    subtype: str = "NONE"
+    kind = "vec2"
+    lanes = 2
+
+    def coerce(self, value: Any) -> tuple[float, float]:
+        x, y = (float(v) for v in tuple(value)[:2])
+        return (x, y)
+
+
+@dataclass(frozen=True)
+class Vec4(Vec3):
+    """Four floats (fragments' `vec4` uniforms; a `COLOR` one is an RGB colour and a value, in that order)."""
+    subtype: str = "NONE"
+    kind = "vec4"
+    lanes = 4
+
+    def coerce(self, value: Any) -> tuple[float, float, float, float]:
+        x, y, z, w = (float(v) for v in tuple(value)[:4])
+        return (x, y, z, w)
+
+
+VECTOR_KINDS = ("vec2", "vec3", "vec4")
+
+
+@dataclass(frozen=True)
 class Enum(Param):
     """A choice; its value is the item identifier, seen by formulas as the item's index."""
     items: tuple[tuple[str, str, str], ...] = field(default_factory=tuple)   # (identifier, label, description)
@@ -109,14 +136,14 @@ def resolve(params: tuple[Param, ...], values: dict[str, Any] | None) -> dict[st
 
 
 def layout(params: tuple[Param, ...]) -> dict[str, tuple[int, int]]:
-    """Runtime parameter → (vec4 slot, first component) in the uniform block. A vec3 takes a slot of its own;
+    """Runtime parameter → (vec4 slot, first component) in the uniform block. A vector takes a slot of its own;
     scalars share slots four to a vec4."""
     slots: dict[str, tuple[int, int]] = {}
     slot, lane = 0, 0
     for p in params:
         if p.static:
             continue
-        if p.lanes == 3:
+        if p.lanes > 1:
             if lane:
                 slot, lane = slot + 1, 0
             slots[p.name] = (slot, 0)
@@ -137,7 +164,7 @@ def slot_count(params: tuple[Param, ...]) -> int:
 
 def numeric(param: Param, value: Any) -> tuple[float, ...]:
     """The value as the floats written into the uniform block."""
-    if param.kind == "vec3":
+    if param.kind in VECTOR_KINDS:
         return tuple(float(v) for v in value)
     if param.kind == "enum":
         return (float(param.index(value)),)

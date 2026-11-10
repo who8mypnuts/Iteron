@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import bpy
 
 from .cpu_sampler import CpuSampler
-from .pipeline import BuildSpec, Step, build
+from .pipeline import Step
 from .steps import Cancelled, run_to_end
 
 TICK = 0.02            # seconds between ticks while there is work
@@ -44,7 +44,7 @@ class Running:
     name: str
     final: bool
     job: object
-    spec: BuildSpec
+    spec: object                   # the kind's build spec (its `resolution` is recorded)
     shape: str
     sampler: str
     step: Step = field(default_factory=lambda: Step(0.0, "Starting"))
@@ -105,7 +105,9 @@ class Scheduler:
     def run_now(self, obj, final: bool = False) -> None:
         """Build `obj` right away, blocking (background mode and scripts)."""
         self.pending.pop(obj.session_uid, None)
-        running = self._start(obj, final)
+        running = self._try_start(obj, final)
+        if running is None:
+            return
         try:
             result = run_to_end(running.job)
         except Exception as error:      # noqa: BLE001 - reported on the object, like the timed path
@@ -145,13 +147,17 @@ class Scheduler:
         now = time.monotonic()
         running.gpu_wait = running.gpu_wait or now
         if now - running.gpu_wait > GPU_STALL:
+            from ..bridge.kinds import kind_of
             obj = find_object(running.uid, running.name)
-            if obj is not None:
-                self.current = self._start(obj, running.final, force_cpu=True)
+            if obj is not None and not kind_of(obj).cpu_fallback:
+                obj.iteron.message = "Waiting for a 3D viewport to draw (this builds on the GPU only)"
+                running.gpu_wait = now
+            elif obj is not None:
+                self.current = self._try_start(obj, running.final, force_cpu=True)
                 obj.iteron.message = "No 3D viewport was drawing; built on the CPU"
             else:
                 self.current = None
-            return
+                return
         _redraw("WINDOW")
 
     def _advance(self, gpu_context: bool) -> None:
@@ -200,30 +206,36 @@ class Scheduler:
         if obj.mode == "EDIT":
             obj.iteron.message = "Not rebuilt while in Edit Mode"
             return
-        self.current = self._start(obj, request.final)
+        self.current = self._try_start(obj, request.final)
 
     # --- jobs ----------------------------------------------------------------------------------------------------
     def _start(self, obj, final: bool, force_cpu: bool = False) -> Running:
-        from ..bridge.props import read_values
-        from ..bridge.state import shape_hash
-        s = obj.iteron
-        spec = BuildSpec(s.formula, read_values(s), tuple(s.center), s.size, s.auto_fit,
-                         s.final_resolution if final else s.preview_resolution, s.surface_offset, final,
-                         s.refine_steps if final else min(s.refine_steps, PREVIEW_REFINE), s.shading == "FIELD",
-                         s.simplify if final else 0.0)
-        sampler = CpuSampler() if force_cpu else make_sampler()
-        return Running(obj.session_uid, obj.name, final, build(spec, sampler), spec, shape_hash(obj), sampler.name,
+        from ..bridge.kinds import kind_of
+        kind = kind_of(obj)
+        job, spec, sampler = kind.start(obj, final, force_cpu)
+        return Running(obj.session_uid, obj.name, final, job, spec, kind.shape_hash(obj), sampler,
                        fallback=force_cpu)
 
+    def _try_start(self, obj, final: bool, force_cpu: bool = False) -> Running | None:
+        """`_start`, with a failure (a fragment that doesn't parse, no GPU for one) reported on the object."""
+        try:
+            return self._start(obj, final, force_cpu)
+        except Exception as error:      # noqa: BLE001
+            self._report(obj, error)
+            return None
+
     def _fall_back(self, running: Running, error: Exception) -> bool:
-        """The GPU path failed: retry the same build on the CPU (once). Mutates `running` in place."""
+        """The GPU path failed: retry the same build on the CPU (once, for kinds that can). Mutates `running`."""
+        from ..bridge.kinds import kind_of
         if running.sampler != "GPU" or running.fallback:
             return False
-        traceback.print_exception(error)
         obj = find_object(running.uid, running.name)
-        if obj is None:
+        if obj is None or not kind_of(obj).cpu_fallback:
             return False
-        replacement = self._start(obj, running.final, force_cpu=True)
+        traceback.print_exception(error)
+        replacement = self._try_start(obj, running.final, force_cpu=True)
+        if replacement is None:
+            return False
         running.job, running.sampler, running.fallback, running.spec = (replacement.job, replacement.sampler, True,
                                                                         replacement.spec)
         running.step = Step(0.0, "Retrying on the CPU")
@@ -231,20 +243,22 @@ class Scheduler:
         return True
 
     def _finish(self, obj, running: Running, result) -> None:
-        from ..bridge import colors, mesh_write
+        from ..bridge.display import sync
+        from ..bridge.kinds import kind_of
         if obj.mode == "EDIT":
             obj.iteron.message = "Not rebuilt while in Edit Mode"
             return
-        mesh_write.write(obj, result)
-        colors.bake(obj)
+        kind_of(obj).finish(obj, result)
         s = obj.iteron
         s.built_hash, s.built_resolution, s.built_final = running.shape, running.spec.resolution, running.final
         s.built_faces, s.built_seconds, s.built_device = result.faces, result.seconds, result.sampler
         if not running.fallback:
             s.message = ""
+        sync(obj)
 
     def _report(self, obj, error: Exception) -> None:
-        traceback.print_exception(error)
+        if not getattr(error, "user_facing", False):     # a bug: keep the traceback; a known limit only says why
+            traceback.print_exception(error)
         obj.iteron.message = f"Build failed: {error}"
 
     def _close_current(self) -> None:

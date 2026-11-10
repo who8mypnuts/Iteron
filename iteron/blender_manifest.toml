@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
 id = "iteron"
-version = "0.2.0"
+version = "0.3.0"
 name = "Iteron"
-tagline = "3D fractals as real, editable Blender meshes"
+tagline = "3D fractals, flames and fragments as real Blender meshes"
 maintainer = "Stan Ragets"
 type = "add-on"
 
@@ -15,7 +15,7 @@ license = ["SPDX:MIT"]
 copyright = ["2026 Stan Ragets"]
 
 [permissions]
-files = "Save and load your own fractal presets"
+files = "Open Fractalchemy and Fragmentarium files, save your own presets"
 
 [build]
 paths_exclude_pattern = ["__pycache__/", "/.git/", "*.zip"]

@@ -37,6 +37,13 @@ class GridPlan:
         return np.asarray(self.origin) + np.asarray(grid_coords, dtype=np.float64) * self.spacing
 
 
+def region(bounds: float, center, half_size: float) -> tuple[np.ndarray, np.ndarray]:
+    """The sampling box: `center ± half_size`, or `center ± bounds` (the formula's own) when `half_size` is 0."""
+    c = np.asarray(center, dtype=np.float64)
+    half = half_size or bounds
+    return c - half, c + half
+
+
 def cube_plan(center, half_size: float, resolution: int) -> GridPlan:
     """`resolution` points per side spanning the cube `center ± half_size`."""
     resolution = max(int(resolution), 4)

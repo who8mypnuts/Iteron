@@ -19,12 +19,20 @@ REBAKE_DELAY = 0.3          # seconds after the last ramp edit
 _DIRTY: set[str] = set()    # names of Iteron materials edited since the last re-bake
 
 
+def ramp_lut(obj) -> np.ndarray:
+    """The object's colour ramp sampled at 256 points, `(256, 4)` float32 (a grey ramp without the material)."""
+    ramp = material.ramp_node(obj)
+    if ramp is None:
+        return np.repeat(np.linspace(0.2, 0.9, LUT_SIZE, dtype=np.float32)[:, None], 4, axis=1)
+    return np.array([ramp.color_ramp.evaluate(i / (LUT_SIZE - 1)) for i in range(LUT_SIZE)], dtype=np.float32)
+
+
 def bake(obj) -> None:
     mesh, ramp = obj.data, material.ramp_node(obj)
     count = len(mesh.vertices)
     if ramp is None or count == 0:
         return
-    lut = np.array([ramp.color_ramp.evaluate(i / (LUT_SIZE - 1)) for i in range(LUT_SIZE)], dtype=np.float32)
+    lut = ramp_lut(obj)
     name = material.ATTRIBUTE_FOR_MODE[obj.iteron.color_mode]
     source = mesh.attributes.get(ATTRIBUTE_PREFIX + name) if name else None
     values = np.zeros(count, dtype=np.float32)

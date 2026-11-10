@@ -22,7 +22,7 @@ from .trace import S, literal
 
 ESCAPE, IFS, DIRECT = "escape", "ifs", "direct"
 LOG, LINEAR = "log", "linear"
-FAMILIES = ("Bulbs", "Boxes", "Sponges", "Kaleidoscopic IFS", "Quaternion")
+FAMILIES = ("Bulbs", "Boxes", "Sponges", "Kaleidoscopic IFS", "Quaternion", "Hybrids")
 UNIFORM = "iteron_u"          # the uniform block instance the GLSL reads parameters from
 
 SHARED: dict[str, tuple[Param, ...]] = {
@@ -67,6 +67,9 @@ class Formula:
                                             # where holes matter (sponges)
     presets: dict[str, dict[str, Any]] = field(default_factory=dict)
     version: int = 1                        # bump when the maths changes, so cached meshes count as stale
+    compose: Callable | None = None         # a formula made of others (a hybrid): `compose(own values)` → the
+                                            # concrete formula; this entry is the composition of the defaults
+    stored: tuple[str, ...] | None = None   # the parameters an object stores for it (None: all)
 
     def param(self, name: str) -> Param:
         return next(p for p in self.params if p.name == name)
@@ -108,6 +111,11 @@ def formula(name: str, *, family: str, kind: str, params: tuple[Param, ...] = ()
         REGISTRY[entry.id] = entry
         return fn
     return register
+
+
+def concrete(entry: Formula, values: dict[str, Any] | None = None) -> Formula:
+    """The formula that runs for `values`: a hybrid composed from its choices, any other formula as it is."""
+    return entry.compose(entry.values(values)) if entry.compose is not None else entry
 
 
 def by_family() -> list[tuple[str, list[Formula]]]:
@@ -152,8 +160,8 @@ def symbolic_values(entry: Formula, values: dict[str, Any]) -> Values:
             continue
         slot, lane = slots[p.name]
         ref = f"{UNIFORM}.v[{slot}]"
-        if p.kind == "vec3":
-            items[p.name] = S("vec3", f"{ref}.xyz")
+        if p.lanes > 1:
+            items[p.name] = S(p.kind, f"{ref}.{'xyzw'[:p.lanes]}")
         elif p.kind == "bool":
             items[p.name] = S("bool", f"({ref}.{'xyzw'[lane]} > 0.5)")
         else:

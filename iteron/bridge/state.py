@@ -8,24 +8,16 @@ hash no longer matches is rebuilt (when *Live* is on). Opening a file never rebu
 
 from __future__ import annotations
 
-import hashlib
-import json
-
 import bpy
 from bpy.app.handlers import persistent
 
-from ..core.formula import REGISTRY
 from ..core.grid import estimate_bytes, estimate_faces
-from .props import read_values
 
 
 def shape_hash(obj) -> str:
     """A digest of everything that shapes the mesh (not the resolution: preview and final are the same shape)."""
-    s = obj.iteron
-    entry = REGISTRY[s.formula]
-    key = [s.formula, entry.version, read_values(s), s.auto_fit, tuple(round(c, 9) for c in s.center), s.size,
-           s.surface_offset, s.refine_steps, s.shading == "FIELD"]
-    return hashlib.sha1(json.dumps(key, sort_keys=True, default=str).encode()).hexdigest()[:16]
+    from .kinds import kind_of
+    return kind_of(obj).shape_hash(obj)
 
 
 def is_fractal(obj) -> bool:
@@ -46,15 +38,25 @@ def final_estimate(obj) -> tuple[int, int] | None:
 
 
 def params_changed(obj) -> None:
-    """A parameter was edited: schedule a live rebuild."""
+    """A parameter was edited: schedule a live rebuild (not when the preview is ray-marched only) and show the
+    ray-marched preview meanwhile."""
     from ..jobs.scheduler import SCHEDULER
-    if is_fractal(obj) and obj.iteron.live and obj.mode != "EDIT":
+    from .animation import BAKING, baked
+    from .display import sync
+    if not is_fractal(obj) or obj.session_uid in BAKING:
+        return
+    if baked(obj):
+        obj.iteron.message = "Baked: clear the bake to rebuild"
+        return
+    if obj.iteron.live and obj.mode != "EDIT" and obj.iteron.preview != "RAYMARCH":
         SCHEDULER.request(obj)
+    sync(obj)
 
 
 def formula_changed(obj) -> None:
     """A new formula: take its recommended surface offset (this also schedules the rebuild)."""
-    if is_fractal(obj):
+    from ..core.formula import REGISTRY
+    if is_fractal(obj) and obj.iteron.kind == "FORMULA":
         obj.iteron.surface_offset = REGISTRY[obj.iteron.formula].surface_offset
     params_changed(obj)
 

@@ -7,12 +7,13 @@ import bpy
 from bpy.props import EnumProperty
 
 from ..bridge import material
-from ..bridge.props import FORMULA_ITEMS, group
+from ..bridge.kinds import FormulaKind
+from ..bridge.props import FORMULA_ITEMS, locate
 from ..bridge.state import final_estimate, is_fractal, is_stale
 from ..core.formula import REGISTRY
 from ..jobs.scheduler import SCHEDULER, Running
 from . import icons
-from .draw import REGION_GROUPS, draw_group, draw_params
+from .draw import REGION_GROUPS, Source, draw_group, draw_params
 
 
 class ITERON_PT_main(bpy.types.Panel):
@@ -51,14 +52,30 @@ def draw_quick_start(layout, context) -> None:
         layout.label(text=entry.description)
     operator = layout.operator("iteron.add_fractal", text="Add Fractal", icon="ADD")
     operator.formula = wm.iteron_new_formula
-    layout.label(text="Or Shift+A ▸ Iteron Fractal", icon="INFO")
+    layout.operator("iteron.import_fractalchemy", text="Open Fractalchemy File…", icon="IMPORT")
+    layout.label(text="Or Shift+A ▸ Iteron Fractal / Flame", icon="INFO")
 
 
 def draw_fractal(layout, obj) -> None:
+    kind = obj.iteron.kind
+    if kind == "FLAME":
+        from .flame_panel import draw_flame
+        draw_flame(layout, obj, _draw_status, _split)
+        return
+    if kind == "FRAGMENT":
+        from .fragment_panel import draw_fragment
+        draw_fragment(layout, obj)
+        return
     s = obj.iteron
-    entry = REGISTRY[s.formula]
     layout.label(text=obj.name, icon="OUTLINER_OB_MESH")
     layout.prop(s, "formula", text="")
+    draw_body(layout, obj, FormulaKind.entry(obj), Source(lambda name: locate(s, name)))
+
+
+def draw_body(layout, obj, entry, source: Source) -> None:
+    """Everything below a formula's or fragment's header: preview mode, presets, status, Shape, Region, Mesh,
+    Color."""
+    layout.row().prop(obj.iteron, "preview", expand=True)
     row = layout.row(align=True)
     row.operator_menu_enum("iteron.apply_preset", "preset", text="Presets", icon="PRESET")
     row.operator("iteron.save_preset", text="", icon="ADD")
@@ -68,8 +85,8 @@ def draw_fractal(layout, obj) -> None:
     header, body = layout.panel("iteron_shape", default_closed=False)
     header.label(text="Shape")
     if body is not None:
-        draw_params(body, group(s), entry)
-    _draw_region(layout, s, entry)
+        draw_params(body, source, entry)
+    _draw_region(layout, obj.iteron, entry, source)
     _draw_mesh(layout, obj)
     _draw_color(layout, obj)
 
@@ -93,7 +110,7 @@ def _draw_status(layout, obj) -> None:
         layout.label(text=s.message, icon="ERROR" if "failed" in s.message.lower() else "INFO")
 
 
-def _draw_region(layout, s, entry) -> None:
+def _draw_region(layout, s, entry, source: Source) -> None:
     header, body = layout.panel("iteron_region", default_closed=True)
     header.label(text="Region")
     if body is not None:
@@ -105,7 +122,7 @@ def _draw_region(layout, s, entry) -> None:
         column.prop(s, "center")
         column.prop(s, "size")
         for name in REGION_GROUPS:
-            draw_group(body, group(s), entry, name)
+            draw_group(body, source, entry, name)
 
 
 def _count(n: int) -> str:
@@ -130,8 +147,26 @@ def _draw_mesh(layout, obj) -> None:
     if estimate is not None:
         faces, size = estimate
         column.label(text=f"About {_count(faces)} faces · {size / 1e9:.1f} GB", icon="INFO")
+    column.separator()
+    column.prop(s, "output")
+    if s.output == "VOLUME":
+        column.prop(s, "volume_density")
+        column.prop(s, "volume_voxel")
     body.operator("iteron.build_final", icon="MESH_ICOSPHERE")
+    draw_bake(body, obj)
     body.operator("iteron.apply_mesh", icon="CHECKMARK")
+
+
+def draw_bake(layout, obj) -> None:
+    """Bake Animation, or what is baked and Clear Bake."""
+    from ..bridge.animation import baked, frame_range
+    if baked(obj):
+        first, last = frame_range(obj)
+        row = layout.row(align=True)
+        row.label(text=f"Baked frames {first}–{last}", icon="RENDER_ANIMATION")
+        row.operator("iteron.clear_bake", text="", icon="TRASH")
+    else:
+        layout.operator("iteron.bake_animation", icon="RENDER_ANIMATION")
 
 
 def _draw_color(layout, obj) -> None:

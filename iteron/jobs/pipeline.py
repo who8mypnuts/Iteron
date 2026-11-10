@@ -17,8 +17,8 @@ import numpy as np
 
 from ..core import blocks as blk
 from ..core import refine
-from ..core.formula import REGISTRY
-from ..core.grid import FIT_RESOLUTION, GridPlan, box_plan, cube_plan, fitted_bounds
+from ..core.formula import REGISTRY, concrete
+from ..core.grid import FIT_RESOLUTION, GridPlan, box_plan, cube_plan, fitted_bounds, region
 from ..core.simplify import simplify
 from ..core.surface_nets import assemble, crossings
 from .steps import GpuTurn, Waiting, in_thread
@@ -55,6 +55,7 @@ class BuildResult:
     normals: np.ndarray | None = None      # (V, 3) float32 unit normals (nan rows: use the mesh's own)
     gain: float = 1.0                      # the distance estimator's calibration (|∇d| near the surface)
     tris: np.ndarray | None = None         # (T, 3) int32: triangles left by simplification
+    channel_range: np.ndarray | None = None  # (2, 3): the raw channel values the colours' 0 and 1 stand for
 
     @property
     def faces(self) -> int:
@@ -69,9 +70,10 @@ class Step:
     needs_gpu: bool = False                # the next step draws: advance the job from a draw callback
 
 
-def build(spec: BuildSpec, sampler) -> Generator[Step, None, BuildResult]:
+def build(spec: BuildSpec, sampler, entry=None) -> Generator[Step, None, BuildResult]:
+    """`entry`: the formula when it isn't a registered one (a fragment)."""
     started = time.perf_counter()
-    entry = REGISTRY[spec.formula_id]
+    entry = concrete(entry or REGISTRY[spec.formula_id], spec.values)     # a hybrid: what its choices make
     values = entry.values(spec.values)
     plan, near, reach = yield from _plan(spec, sampler, entry, values)
     occupied = blk.occupied(plan, blk.layout(plan), near, reach)
@@ -95,7 +97,8 @@ def build(spec: BuildSpec, sampler) -> Generator[Step, None, BuildResult]:
         vertices, normals, raw, gain = yield from _refine(spec, sampler, entry, values, vertices, gain, plan)
     else:
         raw = (yield from _stage(_evaluate(sampler, entry, values, vertices), 0.72, 0.95, "Colouring"))[:, 1:]
-    channels = yield from _stage(in_thread(normalise, np.asarray(raw, dtype=np.float64)), 0.95, 0.96, "Colouring")
+    channels, channel_range = yield from _stage(in_thread(normalise, np.asarray(raw, dtype=np.float64)), 0.95, 0.96,
+                                                "Colouring")
     if spec.simplify > 0 and normals is not None and len(quads):
         reduced = yield from _stage(in_thread(simplify, vertices, normals, channels, quads, plan.origin, plan.spacing,
                                               spec.simplify * plan.spacing), 0.96, 1.0, "Simplifying")
@@ -103,14 +106,14 @@ def build(spec: BuildSpec, sampler) -> Generator[Step, None, BuildResult]:
                                                     reduced.tris)
     return BuildResult(vertices.astype(np.float32), quads, np.asarray(channels, dtype=np.float32), plan, sampler.name,
                        time.perf_counter() - started, spec, None if normals is None or not spec.field_normals
-                       else normals.astype(np.float32), gain, tris)
+                       else normals.astype(np.float32), gain, tris, channel_range)
 
 
 def _plan(spec: BuildSpec, sampler, entry, values):
     """A coarse pass over the region, then the full grid: the region, shrunk by auto-fit to where the coarse pass
     finds the fractal. Returns the grid, the coarse samples near the surface (world points) and their reach."""
-    half = spec.half_size or entry.bounds
-    center = np.asarray(spec.center, dtype=np.float64)
+    lo, hi = region(entry.bounds, spec.center, spec.half_size)
+    center, half = (lo + hi) / 2.0, float(hi[0] - lo[0]) / 2.0
     coarse = cube_plan(center, half, FIT_RESOLUTION)
     found = yield from _stage(sampler.sample(entry, values, coarse), 0.0, 0.06, "Finding the surface")
     near = coarse.to_world(np.argwhere(found.distance < coarse.spacing))
@@ -186,13 +189,14 @@ def _scaled(inner: Generator, start: int, count: int, total: int):
         inner.close()
 
 
-def normalise(raw: np.ndarray) -> np.ndarray:
-    """Each colour channel stretched to 0…1 over its 1st–99th percentile."""
+def normalise(raw: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Each colour channel stretched to 0…1 over its 1st–99th percentile; also returns those percentiles `(2, 3)`
+    (the live preview colours with the same range)."""
     if raw.shape[0] == 0:
-        return np.zeros((0, 3), dtype=np.float32)
+        return np.zeros((0, 3), dtype=np.float32), np.array([[0.0] * 3, [1.0] * 3])
     lo, hi = np.percentile(raw, 1, axis=0), np.percentile(raw, 99, axis=0)
     span = np.where(hi - lo > 1e-9, hi - lo, 1.0)
-    return np.clip((raw - lo) / span, 0.0, 1.0).astype(np.float32)
+    return np.clip((raw - lo) / span, 0.0, 1.0).astype(np.float32), np.stack([lo, lo + span])
 
 
 def _stage(inner: Generator, lo: float, hi: float, message: str) -> Generator[Step, None, Any]:

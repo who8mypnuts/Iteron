@@ -6,7 +6,7 @@ import pytest
 
 import iteron.formulas  # noqa: F401
 from iteron.core import cpu_eval
-from iteron.core.formula import REGISTRY
+from iteron.core.formula import REGISTRY, concrete
 
 RNG = np.random.default_rng(7)
 
@@ -72,7 +72,7 @@ def test_sierpinski_volume_halves_per_level():
 
 @pytest.mark.parametrize("fid,preset", [(f, p) for f, e in REGISTRY.items() for p in e.presets])
 def test_every_preset_has_a_surface(fid, preset):
-    entry = REGISTRY[fid]
+    entry = concrete(REGISTRY[fid], REGISTRY[fid].presets[preset])
     b = entry.bounds
     pts = RNG.uniform(-b, b, (20000, 3))
     out = cpu_eval.evaluate(entry, entry.values(entry.presets[preset]), pts)

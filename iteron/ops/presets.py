@@ -1,25 +1,30 @@
 # SPDX-License-Identifier: MIT
-"""Presets: apply a built-in or saved one, save the current parameters, delete a saved one, reset."""
+"""Presets: apply a built-in or saved one, save the current parameters, delete a saved one, reset. The same
+operators serve built-in formulas and fragments (whose presets are their `#preset` blocks)."""
 
 import bpy
 from bpy.props import EnumProperty, StringProperty
 
 from ..bridge import presets as user
-from ..bridge.props import read_values, reset_values, write_values
+from ..bridge.kinds import kind_of
 from ..bridge.state import is_fractal
-from ..core.formula import REGISTRY
 
 _ITEMS_CACHE: list = []          # Blender needs dynamic enum items kept alive
 _USER_CACHE: list = []
 
 
-def _formula(context):
+def _entry(context):
     obj = context.active_object if context else None
-    return REGISTRY.get(obj.iteron.formula) if is_fractal(obj) else None
+    if not is_fractal(obj) or obj.iteron.kind == "FLAME":
+        return None
+    try:
+        return kind_of(obj).entry(obj)
+    except ValueError:              # a fragment that doesn't parse
+        return None
 
 
 def _preset_items(_self, context):
-    entry = _formula(context)
+    entry = _entry(context)
     items = [(name, name, f"Apply the built-in {name} preset") for name in (entry.presets if entry else {})]
     saved = user.user_presets(entry.id) if entry else []
     if saved:
@@ -30,9 +35,14 @@ def _preset_items(_self, context):
 
 
 def _user_items(_self, context):
-    entry = _formula(context)
+    entry = _entry(context)
     _USER_CACHE[:] = [(name, name, f"Delete your preset {name}") for name in (user.user_presets(entry.id) if entry else [])]
     return _USER_CACHE or [("", "(no saved presets)", "")]
+
+
+def reset(obj) -> None:
+    kind = kind_of(obj)
+    kind.write(obj, kind.entry(obj).values())
 
 
 class _FractalOperator:
@@ -40,11 +50,11 @@ class _FractalOperator:
 
     @classmethod
     def poll(cls, context):
-        return is_fractal(context.active_object)
+        return _entry(context) is not None
 
 
 class ITERON_OT_apply_preset(_FractalOperator, bpy.types.Operator):
-    """Set the formula's parameters to a preset"""
+    """Set the parameters to a preset"""
     bl_idname = "iteron.apply_preset"
     bl_label = "Apply Preset"
     bl_property = "preset"
@@ -52,18 +62,18 @@ class ITERON_OT_apply_preset(_FractalOperator, bpy.types.Operator):
     preset: EnumProperty(name="Preset", items=_preset_items)
 
     def execute(self, context):
-        settings = context.active_object.iteron
+        obj, entry = context.active_object, _entry(context)
         if self.preset.startswith(user.USER_PREFIX):
-            values = user.load(settings.formula, self.preset[len(user.USER_PREFIX):])
+            values = user.load(entry, self.preset[len(user.USER_PREFIX):])
         else:
-            values = REGISTRY[settings.formula].presets.get(self.preset, {})
-        reset_values(settings)
-        write_values(settings, values)
+            values = entry.presets.get(self.preset, {})
+        reset(obj)
+        kind_of(obj).write(obj, values)
         return {"FINISHED"}
 
 
 class ITERON_OT_save_preset(_FractalOperator, bpy.types.Operator):
-    """Save the formula's current parameters as a preset of your own"""
+    """Save the current parameters as a preset of your own"""
     bl_idname = "iteron.save_preset"
     bl_label = "Save Preset"
 
@@ -73,8 +83,8 @@ class ITERON_OT_save_preset(_FractalOperator, bpy.types.Operator):
         return context.window_manager.invoke_props_dialog(self)
 
     def execute(self, context):
-        settings = context.active_object.iteron
-        path = user.save(settings.formula, self.name, read_values(settings))
+        obj = context.active_object
+        path = user.save(_entry(context).id, self.name, kind_of(obj).read(obj))
         self.report({"INFO"}, f"Saved preset {path.stem}")
         return {"FINISHED"}
 
@@ -89,17 +99,17 @@ class ITERON_OT_delete_preset(_FractalOperator, bpy.types.Operator):
 
     def execute(self, context):
         if self.preset:
-            user.delete(context.active_object.iteron.formula, self.preset)
+            user.delete(_entry(context).id, self.preset)
         return {"FINISHED"}
 
 
 class ITERON_OT_reset_formula(_FractalOperator, bpy.types.Operator):
-    """Reset every parameter of the formula to its default"""
+    """Reset every parameter to its default"""
     bl_idname = "iteron.reset_formula"
     bl_label = "Reset Parameters"
 
     def execute(self, context):
-        reset_values(context.active_object.iteron)
+        reset(context.active_object)
         return {"FINISHED"}
 
 

@@ -31,14 +31,30 @@ def main() -> int:
     bpy.ops.iteron.add_fractal(formula="menger_sponge")
     obj = bpy.context.active_object
     assert obj.iteron.built_faces > 1000 and not obj.iteron.message, obj.iteron.message
+    check_phase_features()
     addon_utils.disable(NAME, default_set=True)
     assert not hasattr(bpy.types.Object, "iteron"), "properties left behind after disabling"
     addon_utils.enable(NAME, default_set=True)
     bpy.ops.iteron.add_fractal(formula="mandelbulb")
     assert bpy.context.active_object.iteron.built_faces > 1000
     addon_utils.disable(NAME, default_set=True)
-    print(f"OK: {archive.name} installs, builds, disables and re-enables on Blender {bpy.app.version_string}")
+    print(f"OK: {archive.name} installs, builds formulas, a flame, a hybrid and a fragment, disables and re-enables "
+          f"on Blender {bpy.app.version_string}")
     return 0
+
+
+def check_phase_features() -> None:
+    """What later phases added, from the installed copy: a flame, a hybrid, and a fragment opened through the
+    importer (its includes come from the packaged shims; without a GPU context it reports that it needs one)."""
+    bpy.ops.iteron.add_flame(flame="sierpinski_pyramid")
+    assert len(bpy.context.active_object.data.vertices) > 10_000, "the flame built no points"
+    bpy.ops.iteron.add_fractal(formula="hybrid")
+    assert bpy.context.active_object.iteron.built_faces > 1000, bpy.context.active_object.iteron.message
+    fixture = ROOT / "tests" / "fixtures" / "fractalchemy" / "PseudoKleinian.fafrag"
+    assert bpy.ops.iteron.import_fractalchemy(filepath=str(fixture)) == {"FINISHED"}
+    fragment = bpy.context.active_object
+    assert fragment.iteron.kind == "FRAGMENT" and len(fragment.iteron.fragment.params) > 5
+    assert fragment.iteron.built_faces > 100 or "GPU" in fragment.iteron.message, fragment.iteron.message
 
 
 if __name__ == "__main__":

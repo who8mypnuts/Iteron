@@ -8,8 +8,9 @@ any other mesh.
 This document is the plan: how it looks, how it works, what is built first, and what comes from the two sample
 sources (`sample_source/blender-addon-template` and `sample_source/Fractalchemy`).
 
-> **Status: Phases 0 – 2 are implemented.** §9 records the measured answers, what changed from the design below,
-> and what could not be verified here. Phase 3 (the live ray-marched preview) is next.
+> **Status: Phases 0 – 5 are implemented, and from Phase 6 hybrids, animation with baking, volume output and the
+> command line.** §9 records the measured answers, what changed from the design below, and what could not be verified
+> here. `tests/run_tests.sh` runs every check (§10).
 
 **Decisions** (reasoning in the sections that follow; your answers to the first round of questions are recorded in §12):
 
@@ -135,13 +136,13 @@ Blender doesn't allow custom colours or styling, so the clean look comes from st
 3. Optionally add Decimate / Smooth / Subdivision modifiers. Rebuilds replace the mesh data in place, so modifiers
    and materials survive. Alternatively, *Apply as Plain Mesh* detaches the object from Iteron for sculpting or editing.
 
-**C — later phases** (the core is designed with these in mind from the start):
+**C — later phases** (all built, Phases 3 – 6):
 * Ray-marched live preview while dragging sliders.
-* Keyframed parameters rebuilt per frame.
-* Hybrid formulas: a chain of steps, Mandelbulb3D style.
-* 3D flames / IFS as point clouds.
+* Keyframed parameters rebuilt per frame, and *Bake Animation* for renders.
+* Hybrid formulas: two formulas' steps alternating, Mandelbulb3D style.
+* 3D flames as point clouds or solids.
 * Opening Fractalchemy `.fa` / `.fa3d` scenes and `.fafrag` / Fragmentarium `.frag` files (§7).
-* Volumes.
+* Volumes (through Geometry Nodes), and a command line outside Blender.
 
 ### 1.4 What Iteron deliberately does not do
 
@@ -321,10 +322,11 @@ Iteron/
 │  │  ├─ steps.py               Waiting / GpuTurn / Cancel, the worker thread, run_to_end
 │  │  ├─ cpu_sampler.py         the numpy sampler on the worker thread
 │  │  └─ scheduler.py           timer + viewport draw callback, debounce, supersede, cancel, CPU fallback
-│  ├─ interop/                  (Phases 4–5) Fractalchemy and Fragmentarium files → Iteron objects, bpy-free readers
-│  │  ├─ fa.py                  `.fa` JSON → flames (the subset of Fractalchemy's Flame model Iteron renders)
-│  │  ├─ fa3d.py                `.fa3d` JSON → flame + materials, lights, environment, camera
-│  │  └─ fragment/              `.fafrag` / `.frag`: preprocess.py, compat.py, annotations.py, shims/*.frag
+│  ├─ flames/                   (Phase 4, bpy-free) model.py, variations.py + var_*.py, chaos.py, density.py,
+│  │                            formats.py (`.fa`, `.fa3d`, camera and lights), library.py + library/*.json
+│  ├─ fragments/                (Phase 5, bpy-free) document.py, annotations.py, preprocess.py, compat.py,
+│  │                            formula.py (a fragment as a formula), shims/*.frag (Iteron's MIT includes)
+│  ├─ cli/                      (Phase 6, bpy-free) `python -m iteron.cli`: commands.py, writers.py, gl_sampler.py
 │  ├─ ops/
 │  │  ├─ add.py                 ITERON_OT_add_fractal
 │  │  ├─ build.py               rebuild / build final / cancel
@@ -348,9 +350,17 @@ Iteron/
                                 (or `--blender PATH` to use `blender --command extension build`)
 ```
 
-**Dependency direction:** `core` ← `formulas` / `interop` ← `gpu_eval` / `bridge` ← `jobs` ← `ops` ← `ui`. No layer imports a
-layer to its right. `core`, `formulas` and `interop` never import `bpy`, so they run and test without Blender (and could back a
-command-line tool later).
+**Dependency direction:** `core` ← `formulas` / `flames` / `fragments` ← `gpu_eval` / `bridge` ← `jobs` ← `ops` ← `ui`.
+No layer imports a layer to its right. `core`, `formulas`, `flames`, `fragments`, the build pipelines and `cli` never
+import `bpy`, so they run and test without Blender and back the command line.
+
+**As built, beyond the tree above:** `core/` also has `raymarch.py` (the preview shader), `blocks.py`, `refine.py`,
+`simplify.py` and `palette.py`; `bridge/` has `kinds.py` (what differs between formula, flame and fragment objects —
+the scheduler, presets, panel and preview use only this), `display.py`, `flame_props.py`, `flame_write.py`,
+`fragment_props.py`, `animation.py`, `volume.py` and `presets.py`; `jobs/` has `flame_pipeline.py`; `ops/` has
+`importer.py`, `fragments.py`, `bake.py` and `region.py`; `ui/` has `overlay.py`, `flame_panel.py` and
+`fragment_panel.py`; `tools/` has `lint.py` (pyflakes without the Blender-property false alarms) and
+`render_showcase.py` (the README's flames / fragments / hybrids image); `tests/run_tests.sh` runs everything.
 
 ---
 
@@ -388,8 +398,8 @@ command-line tool later).
 | Fractalchemy `formulas/lang/` (C dialect → numpy + GLSL) | — | **Reference only.** It's the right idea (one definition, two engines) but built for flame variations and ~4k lines. Tracing Python is smaller and fits DE kernels. It's worth revisiting in Phase 4 if flames are imported wholesale. |
 | Fractalchemy `render/cpu_engine.py`, `solid/capture.py`, `formulas/builtin/flam3.py` | Phase 4 (flames / IFS point clouds) | **Port later.** Use only the natively written builtins, not the GPL library files. |
 | Fractalchemy `solid/holon.py` | Later (instanced IFS with Geometry Nodes) | **Reference.** |
-| Fractalchemy `fractal/formats/fa.py`, `fractal/scene.py`, `scene3d/format.py`, `scene3d/model.py` (MIT, author's) | `interop/fa.py`, `interop/fa3d.py` (Phase 4) | **Port the readers** and the subset of the model Iteron uses; unknown keys are ignored, as Fractalchemy does. |
-| Fractalchemy `fragments/preprocessor.py`, `glsl_compat.py`, `annotations.py`, `presets.py`, `document_format.py` (MIT, author's) | `interop/fragment/` (Phase 5) | **Port, trimmed** to what meshing needs. Rendering, animation, textures and buffer shaders stay out. |
+| Fractalchemy `fractal/formats/fa.py`, `fractal/scene.py`, `scene3d/format.py`, `scene3d/model.py` (MIT, author's) | `flames/model.py`, `flames/formats.py` (Phase 4) | **Port the readers** and the subset of the model Iteron uses; unknown keys are ignored, as Fractalchemy does. |
+| Fractalchemy `fragments/preprocessor.py`, `glsl_compat.py`, `annotations.py`, `presets.py`, `document_format.py` (MIT, author's) | `fragments/` (Phase 5) | **Port, trimmed** to what meshing needs. Rendering, animation, textures and buffer shaders stay out. |
 | Fractalchemy `solid/mesh.py` clean-up, `solid/io/*`, `fragments/blender_script.py` | — | **Not needed**: Blender's modifiers and exporters replace them, and Iteron runs inside Blender. |
 | Fragmentarium includes / examples, Distance Estimator Compendium fragments, `formulas/library/*` (Apophysis, JWildfire) | — | **Not copied** (GPL / LGPL / CC BY-NC-SA, see §8). The classic formulas are re-implemented from their published mathematics. |
 
@@ -422,7 +432,7 @@ A formula may add its own, such as the Kleinian's nesting depth.
 ## 7. Opening Fractalchemy files
 
 There is one import operator, reached from *File ▸ Import ▸ Fractalchemy* or the quick-start's *Open Fractalchemy
-File…*. It picks a reader by file extension. The readers in `interop/` never import `bpy`. Options such as *which
+File…*. It picks a reader by file extension. The readers in `flames/` and `fragments/` never import `bpy`. Options such as *which
 flames* and *add camera / lights* appear in the file browser's own side panel, so there's no extra window.
 
 | File | What it holds | What it becomes in Blender | Phase |
@@ -640,38 +650,95 @@ is passed through unchanged was overwritten before being read in GLSL.
 * Writing 1.1 M faces with custom normals into Blender takes about 3 s on the main thread.
 * CPU builds are about 10× slower than GPU ones, mostly in kernel evaluation.
 
-### Phase 3 — live ray-marched viewport preview
-* A `SpaceView3D` draw handler ray-marches the traced kernel inside the object's bounding box, in object space.
-* It writes depth so it sits correctly among other objects, shaded with the ramp as a 1D texture and a simple studio
-  light.
-* While a slider is being dragged the overlay shows; the mesh rebuilds when you stop.
-* It reuses the same traced GLSL and UBO: only the `main` differs from the probe.
-* Needs a spike on depth writing and matrix conventions across backends first.
+### Phase 3 — live ray-marched viewport preview ✅ done
+* **Built as planned.** A `POST_VIEW` draw handler (`ui/overlay.py`) ray-marches the traced kernel inside the
+  object's sampling box, in object space (`core/raymarch.py` holds the shader source, `gpu_eval/raymarch.py` draws
+  it). Only `main` differs from the probe: the same traced GLSL and uniform block feed both.
+* The box is drawn with its back faces, so the camera may be inside it. Each pixel's ray comes from the inverse
+  model-view-projection, so perspective, orthographic and any object transform work alike. The hit threshold is the
+  pixel's footprint at that depth, so detail follows the zoom.
+* It **writes depth** (declared with `depth_write` on Blender 5), so it sorts among other objects. It is shaded with a
+  simple studio light and coloured by the object's ramp, as a 256 × 1 texture, over the same channel range as the
+  last build.
+* **Preview modes:** *Auto* shows it while the mesh is stale or rebuilding; *Ray-march* always shows it and builds
+  no preview meshes (the fastest exploring); *Mesh* never shows it. While the overlay draws an object, the object
+  shows as its bounds; its own display type is kept aside and restored before saving, so files never keep the
+  temporary one.
+* **Tested** on 4.2 and 5.0: the shader compiles for every formula, fragments included; depth matches a rendered
+  sphere; mode switching and saving restore the display type.
 
-### Phase 4 — flames and IFS as point clouds, `.fa` and `.fa3d` import
-* The Fractalchemy chaos game (numpy) with its natively written 3D variations.
-* Output is a vertex-only mesh with colour attributes plus a generated Geometry Nodes *Mesh to Points* setup, so it
-  renders in Cycles. Alternatively, the density grid goes through the existing surface nets to make a mesh.
-* **`.fa` import** (pick flames from a multi-flame file) and **`.fa3d` import** (flame, per-transform materials, lights,
-  world, camera), as described in §7. The manifest gains the `files` permission.
-* Decide whether to compile formulas from the user's own Fractalchemy formula folders (port of `formulas/lang/`).
-* Later: `.flame` (Apophysis) import, and the holon-style *Instance on Points*.
+### Phase 4 — flames as point clouds and solids, `.fa` and `.fa3d` import ✅ done
+* **The chaos game** (`flames/chaos.py`), in numpy: a population of 65 536 points is iterated in parallel, with
+  xaos as a per-transform selection table, the final transform applied to what is plotted, and runaway points
+  re-seeded. **71 variations** (`var_classic.py`, `var_plugins.py`, `var_depth.py`): the flam3 classics, popular
+  Apophysis plugins and the 3D ones (`julia3D`, `spherical3D`, `curl3D`, `zscale`, `pre_/post_` rotations …).
+  Every shared variation matches Fractalchemy's own to 1e-6, random ones included (same generator stream); a test
+  checks this against the sample sources at test time.
+* **Output** — *Points*: a vertex-only mesh with `Col` (palette) and `iteron_xform` attributes, plus a shared Geometry
+  Nodes group (*Mesh to Points* → *Set Material*) that renders them as spheres in Cycles and EEVEE, with the radius
+  on the modifier. *Solid*: the orbit's density on a grid (percentile-trimmed box, Gaussian blur, normalised at the
+  99th percentile) through the same surface nets; vertex colours are the mean palette colour around each vertex.
+* **Space.** Fractal space has y down the screen, a mirror image of a right-handed space, so Iteron negates y once
+  (`formats.TO_BLENDER`) for points, cameras and lights. The camera is then a proper rotation and the picture matches
+  Fractalchemy's instead of its mirror image.
+* **`.fa` import**: every flame side by side, or the first. **`.fa3d` import**: the flame (*Solid* when the scene
+  was shown solid) with its mesh settings; the camera (perspective or orthographic, roll included); distant lights
+  → Suns placed relative to the camera, point lights → Point lamps; environment → World colour and strength; the
+  first transform's material → roughness and specular, as Fractalchemy's own Blender export does. Per-transform
+  materials and Instancers / holons are left for later.
+* **Bundled flames** (Shift+A ▸ Iteron Flame): Sierpinski Pyramid, Julia Bloom, Curl Shell, Spiral Tower.
+* Flames build on the CPU (the chaos game's branching suits numpy). Previews iterate at most 250 000 points.
+* **Decided:** compiling formulas from the user's own Fractalchemy formula folders (a port of `formulas/lang/`) is
+  not done now. Variations Iteron lacks are named in the panel and skipped.
+* Later: `.flame` (Apophysis) import, per-transform materials, holon-style *Instance on Points*.
 
-### Phase 5 — `.fafrag` / `.frag` import
-* Port the fragment preprocessor, GLSL compatibility layer and annotation/preset parsing (§5, §7).
-* Write Iteron's MIT include shims, and add an *Include folders* preference.
-* Fragment objects: generic typed parameters drawn by the shared drawer; the source embedded as a Text datablock, with
-  *Reload from Disk*; presets; optional camera.
-* Meshing through the GPU sampler. The Phase 3 live preview comes along because it is the same GLSL path.
-* **Done when:** every 3D example in Fractalchemy's own *Fractalchemy Collection* opens and meshes, using only Iteron's
-  shims and no FragM includes.
+### Phase 5 — `.fafrag` / `.frag` import ✅ done
+* **Preprocessor** (`fragments/preprocess.py`): `#include` (column 0, textual; each shim once), `#replace`, `#group`,
+  `#info`, `#vertex … #endvertex` and the host directives, and the annotated uniforms (`annotations.py`: float, vec2 –
+  vec4, colour, colour-and-value, int, menu, bool; `Locked` / `Logarithmic` accepted). `document.py` reads presets,
+  Fractalchemy's metadata block and the preset's camera.
+* **Compatibility** (`compat.py`): uniforms become globals (annotated ones loaded from Iteron's uniform block, the
+  rest at Fragmentarium's usual defaults), duplicates are kept once, doubles become floats, a fragment's `main` and
+  `gl_FragColor` are renamed away, `PI` is defined when used; textures and buffer shaders are reported by name.
+* **The fragment is a formula** (`formula.py`): the kernel loads the parameters, resets the orbit trap, calls
+  `init()` when provided, then `DE(p)`, and applies the shared Cut — traced from the same `runners._cut` the built-in
+  formulas use. Its `KernelSource` is what a traced formula gives, so the GPU sampler, the build pipeline and the
+  live preview take it unchanged.
+* **MIT shims** (`fragments/shims/`): one host shim for every FragM ray tracer, `MathUtils.frag` (written anew;
+  a test checks FragM's rotation convention), `Triplex.frag` (Fractalchemy's own), `QuilezLib.frag` and an MIT-only
+  `Primitives.frag`. Includes are looked for beside the file, then in the *Include Folders* preference, then in the
+  shims; the host includes always map to the shim; 2D hosts are reported as 2D fragments.
+* **Fragment objects:** the source is a Text datablock with the user's own includes inlined and the shims left by
+  name (read back shims-first, so a `.blend` builds the same anywhere); parameters are typed items on
+  `obj.iteron.fragment.params`, synced when the source changes and drawn by the same drawer as formulas; the
+  `#preset`s are the presets; the preset's camera can become a Blender camera (FOV → vertical angle, y-up
+  fragments stood upright by the object's rotation); *Reload from Disk* re-reads the file.
+* **GPU only**: the CPU fallback is off for fragments, and a build without a GPU says so.
+* **Done when** — met: all 13 3D fragments of Fractalchemy's *Fractalchemy Collection* open and mesh with Iteron's
+  shims alone (a core test samples each through moderngl, a Blender test meshes three). Of the 238 examples in
+  Fractalchemy's library, 140 build with the shims alone and 148 with its include folder; the rest are 2D, use
+  textures or buffer shaders, or have no `DE(vec3)`.
 
-### Phase 6+ — candidates (order to be decided together)
-* **Hybrids**: a chain of formula steps per iteration, Mandelbulb3D style. The step-function design makes this mostly UI.
-* **Animation**: keyframed parameters rebuilt on frame change, and a *bake frame range* to mesh sequences for farms.
-* **Volumes**: OpenVDB output where Blender's Python exposes it, otherwise through Geometry Nodes.
-* **Sparse block meshing** beyond 512³, following Fractalchemy's sparse mode.
-* A **command-line** entry (`core` is bpy-free) for batch meshing outside Blender.
+### Phase 6 — done so far ✅
+* **Hybrids** (`formulas/hybrid.py`): two formulas alternating within every iteration, each run 1 – 4 times,
+  Mandelbulb3D style. The object stores only the choices; each part's parameters are that formula's own group, so
+  values are shared with the standalone formula (the same formula twice shares one set). `compose` builds the
+  concrete formula (parts' parameters prefixed `a_` / `b_`); the registered entry is the composition of the defaults,
+  so everything that takes a formula takes a hybrid. Six presets.
+* **Animation** (`bridge/animation.py`, `ops/bake.py`): keyframed parameters rebuild the preview on frame change.
+  *Bake Animation* builds the Final mesh of every frame into its own mesh; a baked object swaps meshes in
+  `frame_change_pre` (renders and farms see it; the bake turns on *Lock Interface*), live rebuilds pause, and *Clear
+  Bake* restores the live mesh.
+* **Volumes** (`bridge/volume.py`): *Output ▸ Volume* fills the mesh as a volume with a Geometry Nodes *Mesh to
+  Volume* modifier and a Principled Volume material. Blender's Python has no OpenVDB writer, so the volume lives
+  where Blender makes volumes.
+* **Command line** (`cli/`): `python -m iteron.cli formulas | mesh | fragment | flame` builds without Blender and
+  writes PLY / OBJ with colours and normals; `--gpu` and fragments use a moderngl sampler, which the tests share.
+
+### Phase 6+ — still open
+* **Sparse block meshing** beyond 1024³ (blocks already bound memory; the limit is the vertex count).
+* `.flame` import, per-transform flame materials, instancers.
+* Fragment textures, and colour from a fragment's `baseColor`.
 
 ---
 
@@ -697,6 +764,14 @@ is passed through unchanged was overwritten before being read in GLSL.
   * `.fa` files from `sample_source/Fractalchemy/samples` parse;
   * `.fa3d` and `.fafrag` fixtures (exported from Fractalchemy, as the samples have none) parse;
   * the fragment preprocessor resolves the shims and reports a missing include by name.
+* **Added in Phases 3 – 6:** the preview shader and its depth (Blender); flames — the chaos game on known
+  attractors, xaos, density meshing, every bundled flame, the readers, the camera's handedness, and every shared
+  variation against Fractalchemy's own; fragments — annotations, include rules, compatibility, presets, the Cut, the
+  acceptance set through moderngl and in Blender, save / reopen, keyframes on items; hybrids (a formula hybridised
+  with itself is that formula iterated twice as often); baking and frame swapping; volume output; the command line.
+* **`tests/run_tests.sh`** runs everything from fresh virtual environments — lint, the 400-line and SPDX rules, the
+  bpy-free import check, the core tests, the command line, the whole suite under bpy 4.2.0 and 5.0.1, manifest
+  validation, the zip, and an install check per version — and prints `EXPECTED` / `MISMATCH` per check.
 * Manual checklist per release: the three OSes × the two Blender versions, and a visual pass over every formula.
 
 ---

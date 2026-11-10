@@ -15,31 +15,45 @@ from ..jobs.pipeline import CHANNELS, BuildResult
 ATTRIBUTE_PREFIX = "iteron_"
 
 
-def write(obj, result: BuildResult) -> None:
-    mesh = obj.data
+def fill(mesh, vertices: np.ndarray, quads: np.ndarray, tris: np.ndarray | None = None) -> None:
+    """Replace the mesh's geometry (quads first, then triangles; no faces at all for a point cloud)."""
     materials = list(mesh.materials)
     mesh.clear_geometry()
-    vertices, quads = result.vertices, result.quads
-    tris = result.tris if result.tris is not None else np.zeros((0, 3), dtype=np.int32)
+    tris = tris if tris is not None else np.zeros((0, 3), dtype=np.int32)
     corners = np.concatenate([quads.astype(np.int32).ravel(), tris.astype(np.int32).ravel()])
     starts = np.concatenate([np.arange(0, quads.size, 4), quads.size + np.arange(0, tris.size, 3)]).astype(np.int32)
     mesh.vertices.add(len(vertices))
-    mesh.vertices.foreach_set("co", vertices.astype(np.float32).ravel())
+    mesh.vertices.foreach_set("co", np.asarray(vertices, dtype=np.float32).ravel())
     mesh.loops.add(corners.size)
     mesh.loops.foreach_set("vertex_index", corners)
     mesh.polygons.add(len(starts))
     mesh.polygons.foreach_set("loop_start", starts)
     mesh.update(calc_edges=True)
-    for index, name in enumerate(CHANNELS):
-        attribute = mesh.attributes.get(ATTRIBUTE_PREFIX + name) or mesh.attributes.new(ATTRIBUTE_PREFIX + name,
-                                                                                         "FLOAT", "POINT")
-        attribute.data.foreach_set("value", np.ascontiguousarray(result.channels[:, index], dtype=np.float32))
     if list(mesh.materials) != materials:          # clear_geometry keeps them; be certain
         mesh.materials.clear()
         for material in materials:
             mesh.materials.append(material)
+
+
+def attribute(mesh, name: str, values: np.ndarray, kind: str = "FLOAT", domain: str = "POINT") -> None:
+    """Create or refill a mesh attribute (`FLOAT`, `INT` or `FLOAT_COLOR` from `(V,)` / `(V, 4)` values)."""
+    existing = mesh.attributes.get(name)
+    if existing is not None and existing.data_type != kind:
+        mesh.attributes.remove(existing)
+        existing = None
+    layer = existing or mesh.attributes.new(name, kind, domain)
+    field = {"FLOAT": "value", "INT": "value", "FLOAT_COLOR": "color"}[kind]
+    dtype = np.int32 if kind == "INT" else np.float32
+    layer.data.foreach_set(field, np.ascontiguousarray(values, dtype=dtype).ravel())
+
+
+def write(obj, result: BuildResult) -> None:
+    mesh = obj.data
+    fill(mesh, result.vertices, result.quads, result.tris)
+    for index, name in enumerate(CHANNELS):
+        attribute(mesh, ATTRIBUTE_PREFIX + name, result.channels[:, index])
     apply_shading(obj)
-    if result.normals is not None and len(vertices):
+    if result.normals is not None and len(result.vertices):
         normals = np.nan_to_num(result.normals, nan=0.0)   # a zero custom normal means "keep Blender's own"
         mesh.normals_split_custom_set_from_vertices(normals)
 

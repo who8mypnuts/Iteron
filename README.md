@@ -5,14 +5,16 @@
   </picture>
 </p>
 
-<p align="center"><b>3D fractals as real, editable Blender meshes.</b></p>
+<p align="center"><b>3D fractals, flames and fragments as real, editable Blender meshes.</b></p>
 
-<p align="center"><img src="docs/images/gallery.png" alt="The eight Phase 1 formulas, rendered in Blender with EEVEE"></p>
+<p align="center"><img src="docs/images/gallery.png" alt="Iteron's formulas, rendered in Blender with EEVEE"></p>
 
-Iteron adds Mandelbulbs, Mandelboxes, Menger sponges, kaleidoscopic IFS and quaternion Julia sets to Blender as
-ordinary mesh objects. You shape a fractal from one sidebar tab while a preview rebuilds live, then build it at high
-resolution. It renders in Cycles and EEVEE, exports with Blender's own exporters (colours included), and takes
-modifiers, materials and undo like any other mesh.
+Iteron adds Mandelbulbs, Mandelboxes, Menger sponges, kaleidoscopic IFS, quaternion Julia sets and hybrids of them
+to Blender as ordinary mesh objects. You shape a fractal from one sidebar tab — ray-marched live in the viewport
+while its mesh rebuilds — then build it at high resolution. It also opens Fractalchemy's fractal flames (`.fa`,
+`.fa3d`) as point clouds or solids, and Fragmentarium distance estimators (`.frag`, `.fafrag`) as meshes. Everything
+renders in Cycles and EEVEE, exports with Blender's own exporters (colours included), animates, and takes modifiers,
+materials and undo like any other mesh.
 
 ## Install
 
@@ -54,8 +56,63 @@ To build the zip yourself, run `python tools/build.py`; the zip is written to `d
   * **Simplify** lets Build Final merge flat areas into larger faces, within a fraction of a voxel, while intricate
     areas keep every face. The mesh stays closed and manifold.
   * **Apply as Plain Mesh** stops rebuilding and keeps the mesh as it is, for sculpting or editing.
+  * **Output** *Volume* fills the mesh as a volume (a Geometry Nodes *Mesh to Volume* modifier with a Principled
+    Volume material) for fog-like renders; *Density* and *Voxel Size* set it.
+  * **Bake Animation** builds the Final mesh of every frame in the scene's range (see *Animation* below).
 * **Color** chooses what drives the colour ramp (*Orbit Trap*, *Iterations*, *Radius*, *Solid*) and shows the
   ramp itself. The ramp is the object's material: editing it here or in the Shader Editor is the same thing.
+
+### The live preview
+
+While a fractal's mesh is out of date (you are dragging a slider, or it is rebuilding) the viewport shows it
+**ray-marched** on the GPU, in place, with correct depth among other objects and coloured by the same ramp. The row
+under the formula picks the mode: **Auto** (ray-marched only while the mesh is stale), **Ray-march** (always: the
+fastest way to explore — only Build Final makes a mesh) or **Mesh** (never).
+
+<p align="center"><img src="docs/images/showcase.png" alt="Iteron's flames as points, fragments from Fractalchemy's collection and hybrids, rendered in Blender with EEVEE"></p>
+
+### Hybrids
+
+**Hybrid** (Shift+A ▸ Iteron Fractal ▸ Hybrids) runs one formula's step and then another's every iteration,
+Mandelbulb3D style: pick the two formulas (any escape-time or folding formula) and how many steps of each. Each part
+keeps its own parameters — a Mandelbulb's power is the same whether it is used alone or in a hybrid — and the
+presets (*Bulb + Box*, *ABox + Bulb*, *Bulb + Menger*, …) pick both parts at once.
+
+### Flames
+
+**Shift+A ▸ Iteron Flame** adds one of Iteron's fractal flames; **File ▸ Import ▸ Fractalchemy** (or the sidebar's
+*Open Fractalchemy File…*) opens your own:
+
+* **`.fa`** — every flame in the file, side by side (or only the first).
+* **`.fa3d`** — the flame with its 3D camera, lights, world colour, surface and mesh settings.
+
+A flame is iterated with the chaos game on the CPU (its 3D variations included; any variation Iteron lacks is named
+in the panel and skipped). **Output** *Points* makes a point cloud rendered as tiny spheres (a Geometry Nodes
+modifier; *Point Size* sets them), *Solid* a closed mesh around the orbit's dense regions (*Density Threshold*,
+*Smoothing*). Points are coloured from the flame's palette.
+
+### Fragments
+
+**File ▸ Import ▸ Fractalchemy** also opens Fragmentarium fragments (`.frag`, and Fractalchemy's `.fafrag`) that
+define a 3D distance estimator, `float DE(vec3 p)`:
+
+* The **annotated uniforms** become the fragment's sliders (`obj.iteron.fragment.params["Power"]`, keyframeable),
+  grouped by their `#group`; the **`#preset`** blocks are its presets; the preset's camera can become a Blender
+  camera.
+* FragM's own include files can't ship with Iteron (they are GPL), so Iteron brings **MIT stand-ins** for the ray
+  tracers, `MathUtils.frag`, `Triplex.frag` and `Primitives.frag`. Any other include is looked for beside the file
+  and in the **Include Folders** set in the add-on's preferences (point them at Fractalchemy's or FragM's library).
+* The source is kept in the `.blend` as a Text datablock (your own includes inlined), so the file opens anywhere.
+  Edit it in the Text Editor and rebuild; **Reload from Disk** reads the file again.
+* Fragments are GLSL, so they build on the **GPU only**. Textures and buffer shaders aren't supported; the panel
+  says what a fragment needs that Iteron lacks. The colours come from the fragment's orbit trap.
+
+### Animation
+
+Every parameter can be keyframed; while playing or scrubbing, a fractal whose parameters changed rebuilds its
+preview. For renders, **Bake Animation** (in the Mesh section) builds the Final mesh of every frame of the scene's
+range and keeps them: the object swaps meshes on frame change — also while rendering, and on render farms — instead
+of rebuilding. **Clear Bake** goes back to live rebuilding.
 
 The fractal is a normal mesh object, so all of Blender's tools apply:
 
@@ -79,6 +136,21 @@ rather than the volume. Resolutions up to 1024 work. The limit is a preference.
 The field is sampled on the **GPU** through Blender's own `gpu` module when it can be, and on the CPU with numpy
 otherwise. The CPU is slower but works everywhere, including `blender -b`. You can choose either in the add-on's
 preferences.
+
+### Command line
+
+`core`, `jobs`, `flames` and `fragments` never import Blender, so the same builds run from a shell and write PLY
+or OBJ (with vertex colours and normals):
+
+```bash
+python -m iteron.cli formulas                                   # formulas, parameters and presets
+python -m iteron.cli mesh mandelbulb -s power=9 -r 320 -o bulb.ply          # numpy; --gpu uses moderngl
+python -m iteron.cli mesh hybrid --preset "Bulb + Menger" -o hybrid.obj
+python -m iteron.cli fragment "3D - Juliabulb.frag" -r 256 -o julia.ply     # needs moderngl (OpenGL 3.3)
+python -m iteron.cli flame my_flames.fa -n 5000000 -o flame.ply            # points; --solid for a mesh
+```
+
+Run it from the repository's root with numpy installed (and moderngl for `--gpu` and fragments).
 
 ### Scripting
 
@@ -112,6 +184,10 @@ Formula ids are the names in lower case with underscores (`mandelbulb`, `menger_
 | Kaleidoscopic IFS | Octahedral KIFS | Default, Truncated, Star, Twisted |
 | Kaleidoscopic IFS | Koch Tetrahedron | Default, Level 2, Stretched |
 | Quaternion | Quaternion Julia | Default, Coral, Dendrite |
+| Hybrids | Hybrid | Bulb + Box, ABox + Bulb, Bulb + Menger, Bulb + Octahedral, Int Pow + Box, Lambda + Box |
+
+Flames: *Sierpinski Pyramid*, *Julia Bloom*, *Curl Shell*, *Spiral Tower* (Shift+A ▸ Iteron Flame), and any `.fa` /
+`.fa3d` file.
 
 Where each formula's mathematics comes from is in [THIRD_PARTY.md](THIRD_PARTY.md).
 
@@ -120,16 +196,24 @@ Where each formula's mathematics comes from is in [THIRD_PARTY.md](THIRD_PARTY.m
 ```
 iteron/            the extension (what the zip contains)
   core/            formulas' machinery, numpy evaluation, GLSL tracing, blocks, surface nets, refinement,
-                   simplification — never imports bpy
-  formulas/        one small file per family of @formula functions
-  gpu_eval/        the GPU sampler (Blender's gpu module)
-  bridge/          Blender data: generated properties, mesh writing, material, colours, staleness
-  jobs/            the build pipeline (bpy-free) and the scheduler that runs it between UI events
-  ops/  ui/        operators, the sidebar panel, the Add menu
+                   simplification, the ray-march shader — never imports bpy
+  formulas/        one small file per family of @formula functions; hybrid.py composes them
+  flames/          the flame model, variations, chaos game, density meshing, .fa / .fa3d readers (bpy-free)
+  fragments/       the .frag preprocessor, GLSL compatibility, Iteron's MIT include shims (bpy-free)
+  gpu_eval/        the GPU sampler and the live preview (Blender's gpu module)
+  bridge/          Blender data: generated properties, kinds (formula / flame / fragment), mesh writing,
+                   material, colours, staleness, animation and baking, volume output
+  jobs/            the build pipelines (bpy-free) and the scheduler that runs them between UI events
+  ops/  ui/        operators (add, build, presets, import, bake …), the sidebar panel, the Add menus, the overlay
+  cli/             python -m iteron.cli: builds without Blender, PLY / OBJ writers, a moderngl sampler
   thumbnails/      the formula gallery (tools/render_thumbnails.py)
-tests/core/        pytest, no Blender: formulas, surface nets, GLSL ↔ numpy parity (moderngl)
-tests/blender/     pytest inside Blender: the add-on end to end, the scheduler, the GPU sampler, the UI
-tools/             build.py, check_install.py, run_blender_tests.py, render_thumbnails.py, compose_gallery.py
+tests/core/        pytest, no Blender: formulas, hybrids, surface nets, GLSL ↔ numpy parity (moderngl), flames
+                   (and their variations against Fractalchemy's), fragments, the command line
+tests/blender/     pytest inside Blender: the add-on end to end, scheduler, GPU sampler, preview, UI, flames,
+                   fragments, hybrids, animation
+tests/run_tests.sh every check from fresh environments, with a summary (see below)
+tools/             build.py, check_install.py, lint.py, run_blender_tests.py, render_thumbnails.py,
+                   compose_gallery.py, render_showcase.py
 branding/          the logo and icons (and their generator)
 ```
 
@@ -152,10 +236,18 @@ and `ops.loop` for runtime-bounded loops. The parity tests then check that both 
 **Tests**
 
 ```bash
+tests/run_tests.sh                                    # everything, from fresh virtual environments (below)
 python -m pytest tests/core                           # numpy + pytest (+ moderngl for the GPU parity tests)
 python -m pip install bpy && python -m pytest tests   # the whole suite against the bpy module (Python 3.11)
 blender -b --factory-startup --python tools/run_blender_tests.py    # or inside a real Blender
 ```
+
+`tests/run_tests.sh` creates fresh environments (with `uv` when it is installed, `venv` + `pip` otherwise), installs
+the dependencies (numpy, pytest, pyflakes, moderngl; `bpy` 4.2.0 and 5.0.1 on Python 3.11), then runs the lint, the
+file-size and licence-header rules, the bpy-free import check, the core tests, the command line, the whole suite
+under each Blender version, manifest validation, the zip build and an install check per version. It prints one line
+per check — `EXPECTED` or `MISMATCH` — and exits non-zero on any mismatch. Its environment variables (a Python 3.11
+to use, a wheel folder, which Blender versions) are listed at the top of the script.
 
 ## License
 

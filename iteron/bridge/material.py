@@ -2,27 +2,18 @@
 """The material every fractal starts with: a mesh attribute → a colour ramp → Principled BSDF.
 
 The ramp is the palette: the sidebar draws this node's widget, so editing it there or in the Shader Editor is
-the same thing. The ramp starts with the Iteron brand sweep (branding/source/palette.py).
+the same thing. The ramp starts with the Iteron brand sweep (core/palette.py, from branding/source/palette.py).
 """
 
 from __future__ import annotations
 
 import bpy
 
+from ..core.palette import SWEEP, linear
 from .mesh_write import ATTRIBUTE_PREFIX
 
 RAMP_NODE, ATTRIBUTE_NODE = "Iteron Ramp", "Iteron Attribute"
 ATTRIBUTE_FOR_MODE = {"TRAP": "trap", "ITERATIONS": "iterations", "RADIUS": "radius", "SOLID": ""}
-SWEEP = ((0.00, "#1FF0FF"), (0.30, "#2F9BFF"), (0.55, "#6A4DFF"), (0.80, "#B23CFF"), (1.00, "#FF3F93"))
-
-
-def _linear(hex_colour: str) -> tuple[float, float, float, float]:
-    """sRGB hex → scene-linear RGBA (ramp colours are linear)."""
-    def channel(c):
-        c = int(c, 16) / 255.0
-        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    h = hex_colour.lstrip("#")
-    return (channel(h[0:2]), channel(h[2:4]), channel(h[4:6]), 1.0)
 
 
 def attribute_name(mode: str) -> str:
@@ -71,10 +62,41 @@ def create(name: str):
     while len(elements) < len(SWEEP):
         elements.new(0.5)
     for element, (position, colour) in zip(elements, SWEEP):
-        element.position, element.color = position, _linear(colour)
+        element.position, element.color = position, linear(colour)
     links.new(attribute.outputs["Fac"], ramp.inputs["Fac"])
     links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
     return material
+
+
+FLAME_TAG = "iteron_flame"          # marks the material a flame object made
+
+
+def ensure_flame(obj):
+    """A flame's material: its palette colours (the `Col` attribute) into a Principled BSDF."""
+    for slot in obj.material_slots:
+        if slot.material is not None and slot.material.get(FLAME_TAG):
+            return slot.material
+    flame = bpy.data.materials.new(f"Iteron {obj.name}")
+    flame[FLAME_TAG] = True
+    if flame.node_tree is None:
+        flame.use_nodes = True
+    nodes, links = flame.node_tree.nodes, flame.node_tree.links
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Roughness"].default_value = 0.45
+    colour = nodes.new("ShaderNodeAttribute")
+    colour.attribute_type = "GEOMETRY"
+    colour.attribute_name = "Col"
+    colour.location = (bsdf.location.x - 300, bsdf.location.y)
+    links.new(colour.outputs["Color"], bsdf.inputs["Base Color"])
+    obj.data.materials.append(flame)
+    return flame
+
+
+def set_surface(material, roughness: float, specular: float) -> None:
+    bsdf = next((n for n in material.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if bsdf is not None:
+        bsdf.inputs["Roughness"].default_value = roughness
+        bsdf.inputs["Specular IOR Level"].default_value = specular
 
 
 def set_mode(obj, mode: str) -> None:
