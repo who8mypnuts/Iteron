@@ -32,6 +32,14 @@ void main() {
 """
 PROBE_CONSTANTS = (("VEC3", "probe_origin"), ("FLOAT", "probe_spacing"), ("INT", "probe_res_y"), ("INT", "probe_first"))
 
+# Arbitrary points: one per pixel, read from an RGBA32F texture (refinement, normals, exact vertex colours).
+POINTS_MAIN = """
+void main() {
+    fragColor = iteron_kernel(texelFetch(probe_points, ivec2(gl_FragCoord.xy), 0).xyz);
+}
+"""
+POINTS_SAMPLER = "probe_points"
+
 
 @dataclass(frozen=True)
 class KernelSource:
@@ -61,4 +69,5 @@ def pack(entry: Formula, values: dict[str, Any]) -> np.ndarray:
     return data
 
 
-__all__ = ["KernelSource", "kernel_source", "pack", "PROBE_MAIN", "PROBE_CONSTANTS", "STRUCT", "UNIFORM"]
+__all__ = ["KernelSource", "kernel_source", "pack", "PROBE_MAIN", "PROBE_CONSTANTS", "POINTS_MAIN", "POINTS_SAMPLER",
+           "STRUCT", "UNIFORM"]

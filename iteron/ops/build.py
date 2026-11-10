@@ -5,8 +5,7 @@ from __future__ import annotations
 
 import bpy
 
-from ..bridge.state import is_fractal
-from ..core.grid import estimate_bytes
+from ..bridge.state import final_estimate, is_fractal
 from ..jobs.scheduler import SCHEDULER
 from ..prefs import preferences
 
@@ -62,9 +61,10 @@ class ITERON_OT_build_final(_FractalOperator, bpy.types.Operator):
         self._object = obj
         self._timer = context.window_manager.event_timer_add(0.1, window=context.window)
         context.window_manager.modal_handler_add(self)
-        gigabytes = estimate_bytes(obj.iteron.final_resolution) / 1e9
-        context.workspace.status_text_set(f"Iteron: building {obj.name} at {obj.iteron.final_resolution} "
-                                          f"(up to ~{gigabytes:.1f} GB) — Esc to cancel")
+        estimate = final_estimate(obj)
+        about = f" (about {estimate[0] / 1e6:.1f} M faces)" if estimate else ""
+        context.workspace.status_text_set(f"Iteron: building {obj.name} at {obj.iteron.final_resolution}{about} "
+                                          "— Esc to cancel")
         return {"RUNNING_MODAL"}
 
     def modal(self, context, event):

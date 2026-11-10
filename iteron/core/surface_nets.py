@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: MIT
 """The isosurface of a sampled distance field as a quad mesh: *naive surface nets*, vectorised in numpy.
 
-Ported from Fractalchemy (`solid/isosurface.py`) and made sparse: everything after the inside/outside test is
-built from the crossing edges alone, so memory follows the surface, not the volume. One vertex per surface cube
-(the mean of its edges' crossings), one quad per crossing edge joining the four cubes around it, wound so normals
-point outwards. Quads are kept as quads — what Blender prefers. The grid's outer layer counts as outside, so the
-surface always closes, and diagonal voxel patterns are filled first (`resolve_ambiguities`), so every edge is
-shared by exactly two quads.
+Ported from Fractalchemy (`solid/isosurface.py`) and reorganised for blocks: `crossings` extracts the crossing
+edges of one block of a large grid (named by their global grid index), `assemble` turns every block's crossings into
+one mesh — so memory follows the surface, never the whole volume. One vertex per surface cube (the mean of its
+edges' crossings), one quad per crossing edge joining the four cubes around it, wound so normals point outwards.
+Quads are kept as quads — what Blender prefers. The grid's outer layer counts as outside, so the surface always
+closes, and diagonal voxel patterns are filled first (`resolve_ambiguities`), so every edge is shared by exactly two
+quads.
 """
 
 from __future__ import annotations
@@ -14,71 +15,119 @@ from __future__ import annotations
 import numpy as np
 
 _CORNERS = ((-1, -1), (0, -1), (0, 0), (-1, 0))     # the cubes around an edge, counter-clockwise
+AMBIGUITY_PASSES = 8     # fill passes (8 settles what 16 would); each reaches one voxel further: blocks need this halo
 
 
 def surface_nets(distance: np.ndarray, iso: float) -> tuple[np.ndarray, np.ndarray]:
-    """`(vertices, quads)` of the surface `distance == iso` (inside where `distance < iso`).
+    """`(vertices, quads)` of the surface `distance == iso` of one whole grid (inside where `distance < iso`).
 
-    Vertices are `(V, 3)` float64 in grid coordinates (multiply by the spacing, add the origin); quads `(Q, 4)` int32.
-    Cubes are named by the flat grid index of their lowest corner, so every lookup is integer arithmetic.
+    Vertices are `(V, 3)` float64 in grid coordinates; quads `(Q, 4)` int32.
     """
     d = np.asarray(distance, dtype=np.float32)
     if min(d.shape) < 3:
         return np.zeros((0, 3)), np.zeros((0, 4), dtype=np.int32)
-    inside = resolve_ambiguities(_closed(d < iso))
-    flat_d, flat_inside = d.ravel(), inside.ravel()
-    strides = np.array([d.shape[1] * d.shape[2], d.shape[2], 1], dtype=np.int64)
-    active = np.zeros(d.size, dtype=bool)
-    edges = []                                         # per axis: (corner cube keys (E, 4), crossing points (E, 3))
+    keys, points = crossings(d, iso, (0, 0, 0), d.shape, (0, 0, 0), d.shape)
+    return assemble([keys], [points], d.size)
+
+
+def crossings(d: np.ndarray, iso: float, offset, core_stop, core_start, shape) -> tuple[np.ndarray, np.ndarray]:
+    """The crossing edges of a block.
+
+    `d` holds samples of the global grid (`shape`) starting at global index `offset` (it may include a halo).
+    Edges are returned when their low end lies in the core `core_start <= index < core_stop` (global indices), so
+    neighbouring blocks never report the same edge. Returns `(keys (E, 4) int64, points (E, 3) float32)`: the four
+    cubes around each edge, in winding order, as flat indices of the global grid, and the crossing point in global
+    grid coordinates.
+    """
+    d = np.asarray(d, dtype=np.float32)
+    offset, shape = np.asarray(offset, dtype=np.int64), np.asarray(shape, dtype=np.int64)
+    outside = _global_boundary(d.shape, offset, shape)
+    inside = resolve_ambiguities((d < iso) & ~outside, outside)
+    strides = np.array([shape[1] * shape[2], shape[2], 1], dtype=np.int64)
+    local = np.array(d.shape)
+    lo = np.maximum(np.asarray(core_start) - offset, 0)
+    keys, points = [], []
     for axis in range(3):
-        crossing = np.zeros(d.shape, dtype=bool)
-        crossing[_take_index(axis, 0, -1)] = _take(inside, axis, 0, -1) != _take(inside, axis, 1, None)
-        start = np.flatnonzero(crossing)
-        del crossing
-        if start.size == 0:
+        hi = np.minimum(np.asarray(core_stop) - offset, local)
+        hi[axis] = min(hi[axis], local[axis] - 1)                # the edge's high end must be in the block too
+        window = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
+        ahead = list(window)
+        ahead[axis] = slice(int(lo[axis]) + 1, int(hi[axis]) + 1)
+        crossing = inside[window] != inside[tuple(ahead)]
+        where = np.nonzero(crossing)
+        if where[0].size == 0:
             continue
-        d0, d1 = flat_d[start], flat_d[start + strides[axis]]
+        low = np.stack(where, axis=1) + lo                      # local indices of the edges' low ends
+        step = np.zeros(3, dtype=np.int64)
+        step[axis] = 1
+        d0, d1 = d[tuple(low.T)], d[tuple((low + step).T)]
         with np.errstate(divide="ignore", invalid="ignore"):
             t = np.clip(np.nan_to_num((iso - d0) / (d1 - d0), nan=0.5), 0.0, 1.0).astype(np.float32)
-        point = np.stack(np.unravel_index(start, d.shape), axis=1).astype(np.float32)
+        global_low = low + offset
+        point = global_low.astype(np.float32)
         point[:, axis] += t
-        others = ((axis + 1) % 3, (axis + 2) % 3)       # cyclic, so every axis winds the same way
-        keys = np.stack([start + da * strides[others[0]] + db * strides[others[1]] for da, db in _CORNERS], axis=1)
-        outward = flat_inside[start]                   # inside at the low end: the surface faces +axis
-        keys[~outward] = keys[~outward][:, ::-1]
-        active[keys.ravel()] = True
-        edges.append((keys, point))
-    if not edges:
+        start = global_low @ strides
+        others = ((axis + 1) % 3, (axis + 2) % 3)              # cyclic, so every axis winds the same way
+        corner_keys = np.stack([start + da * strides[others[0]] + db * strides[others[1]] for da, db in _CORNERS], axis=1)
+        outward = inside[tuple(low.T)]                          # inside at the low end: the surface faces +axis
+        corner_keys[~outward] = corner_keys[~outward][:, ::-1]
+        keys.append(corner_keys)
+        points.append(point)
+    if not keys:
+        return np.zeros((0, 4), dtype=np.int64), np.zeros((0, 3), dtype=np.float32)
+    return np.concatenate(keys), np.concatenate(points)
+
+
+DENSE_LIMIT = 1 << 28      # grids up to this many voxels number their cubes with a dense mask (fast); larger sort
+
+
+def assemble(keys: list[np.ndarray], points: list[np.ndarray], grid_size: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    """Every block's crossings → `(vertices (V, 3) float64 grid coordinates, quads (Q, 4) int32)`.
+
+    `grid_size` (the grid's voxel count) allows the dense numbering of surface cubes when it is small enough."""
+    keys = [k for k in keys if len(k)]
+    if not keys:
         return np.zeros((0, 3)), np.zeros((0, 4), dtype=np.int32)
-    cubes = np.flatnonzero(active)                     # sorted: no sort needed to number the vertices
-    del active
+    all_keys = np.concatenate(keys)
+    all_points = np.concatenate([p for p in points if len(p)])
+    if 0 < grid_size <= DENSE_LIMIT:                           # each surface cube is one vertex
+        active = np.zeros(grid_size, dtype=bool)
+        active[all_keys.ravel()] = True
+        cubes = np.flatnonzero(active)                         # sorted, so searchsorted numbers them
+        del active
+        ids = np.searchsorted(cubes, all_keys).astype(np.int32)
+    else:
+        cubes, ids = np.unique(all_keys, return_inverse=True)
+        ids = ids.reshape(all_keys.shape).astype(np.int32)
     sums = np.zeros((cubes.size, 3), dtype=np.float64)
     counts = np.zeros(cubes.size, dtype=np.float64)
-    quads = []
-    for keys, point in edges:
-        ids = np.searchsorted(cubes, keys).astype(np.int32)
-        quads.append(ids)
-        for corner in range(4):
-            counts += np.bincount(ids[:, corner], minlength=cubes.size)
-            for c in range(3):
-                sums[:, c] += np.bincount(ids[:, corner], weights=point[:, c], minlength=cubes.size)
-    return sums / counts[:, None], np.concatenate(quads)
+    for corner in range(4):
+        counts += np.bincount(ids[:, corner], minlength=cubes.size)
+        for c in range(3):
+            sums[:, c] += np.bincount(ids[:, corner], weights=all_points[:, c], minlength=cubes.size)
+    return sums / counts[:, None], ids
 
 
-def _closed(inside: np.ndarray) -> np.ndarray:
-    inside = inside.copy()
-    inside[0], inside[-1] = False, False
-    inside[:, 0], inside[:, -1] = False, False
-    inside[:, :, 0], inside[:, :, -1] = False, False
-    return inside
+def _global_boundary(local_shape, offset: np.ndarray, shape: np.ndarray) -> np.ndarray:
+    """The voxels of a block on (or beyond) the global grid's outermost layers: they always count as outside."""
+    outside = np.zeros(local_shape, dtype=bool)
+    for axis in range(3):
+        index = np.arange(local_shape[axis]) + offset[axis]
+        layer = (index <= 0) | (index >= shape[axis] - 1)
+        if layer.any():
+            selector = [slice(None)] * 3
+            selector[axis] = layer
+            outside[tuple(selector)] = True
+    return outside
 
 
-def resolve_ambiguities(inside: np.ndarray, max_passes: int = 16) -> np.ndarray:
+def resolve_ambiguities(inside: np.ndarray, outside: np.ndarray | None = None,
+                        max_passes: int = AMBIGUITY_PASSES) -> np.ndarray:
     """Fill the diagonal 2 × 2 patterns (two inside voxels touching only along an edge) on every grid face.
 
     Such a face has all four of its edges crossing, so the four quads around them would share one cube-to-cube
     edge — a non-manifold edge. Filling the two outside voxels of each pattern makes every face unambiguous;
-    a few passes settle the patterns the fills create. The outermost layer stays outside.
+    a few passes settle the patterns the fills create.
     """
     inside = inside.copy()
     for _ in range(max_passes):
@@ -98,7 +147,8 @@ def resolve_ambiguities(inside: np.ndarray, max_passes: int = 16) -> np.ndarray:
                 index[b] = slice(db, inside.shape[b] - 1 + db)
                 fill[tuple(index)] |= diagonal
             inside |= fill
-        inside = _closed(inside)
+            if outside is not None:
+                inside &= ~outside
         if not changed:
             break
     return inside
@@ -109,16 +159,6 @@ def _shift2(a: np.ndarray, axis_a: int, axis_b: int, da: int, db: int) -> np.nda
     index[axis_a] = slice(da, a.shape[axis_a] - 1 + da)
     index[axis_b] = slice(db, a.shape[axis_b] - 1 + db)
     return a[tuple(index)]
-
-
-def _take_index(axis: int, start: int, stop: int | None) -> tuple:
-    index = [slice(None)] * 3
-    index[axis] = slice(start, stop)
-    return tuple(index)
-
-
-def _take(a: np.ndarray, axis: int, start: int, stop: int | None) -> np.ndarray:
-    return a[_take_index(axis, start, stop)]
 
 
 def signed_volume(vertices: np.ndarray, quads: np.ndarray) -> float:

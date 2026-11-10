@@ -53,3 +53,25 @@ def test_diagonal_patterns_are_resolved():
     v, q = surface_nets(d, 0.0)
     directed = set(map(tuple, _edges(q)))
     assert all((b, a) in directed for a, b in directed)
+
+
+def test_blocks_give_the_same_mesh_as_the_whole_grid():
+    from iteron.core.surface_nets import assemble, crossings
+    d, _h = _field(40, lambda x, y, z: np.sin(3 * x) * np.cos(3 * y) + np.sin(3 * y) * np.cos(3 * z)
+                   + np.sin(3 * z) * np.cos(3 * x) + 0.3)
+    whole_v, whole_q = surface_nets(d, 0.0)
+    keys, points, block, halo = [], [], 9, 2
+    for i in range(0, 40, block):
+        for j in range(0, 40, block):
+            for k in range(0, 40, block):
+                start = np.array([i, j, k])
+                lo = np.maximum(start - halo, 0)
+                hi = np.minimum(start + block + 1 + halo, 40)
+                sub = d[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]]
+                kb, pb = crossings(sub, 0.0, lo, np.minimum(start + block, 40), start, d.shape)
+                keys.append(kb)
+                points.append(pb)
+    v, q = assemble(keys, points)
+    assert len(q) == len(whole_q) and len(v) == len(whole_v)
+    as_set = lambda verts, quads: {tuple(sorted(map(tuple, np.round(verts[face], 5)))) for face in quads}
+    assert as_set(v, q) == as_set(whole_v, whole_q)

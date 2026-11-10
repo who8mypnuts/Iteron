@@ -15,6 +15,7 @@ import bpy
 from bpy.app.handlers import persistent
 
 from ..core.formula import REGISTRY
+from ..core.grid import estimate_bytes, estimate_faces
 from .props import read_values
 
 
@@ -23,7 +24,7 @@ def shape_hash(obj) -> str:
     s = obj.iteron
     entry = REGISTRY[s.formula]
     key = [s.formula, entry.version, read_values(s), s.auto_fit, tuple(round(c, 9) for c in s.center), s.size,
-           s.surface_offset]
+           s.surface_offset, s.refine_steps, s.shading == "FIELD"]
     return hashlib.sha1(json.dumps(key, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
@@ -35,6 +36,15 @@ def is_stale(obj) -> bool:
     return is_fractal(obj) and obj.iteron.built_hash != shape_hash(obj)
 
 
+def final_estimate(obj) -> tuple[int, int] | None:
+    """About `(faces, bytes)` for Build Final, scaled from the current mesh (None before the first build)."""
+    s = obj.iteron
+    if not s.built_faces or not s.built_resolution:
+        return None
+    faces = estimate_faces(s.built_faces, s.built_resolution, s.final_resolution)
+    return faces, estimate_bytes(faces)
+
+
 def params_changed(obj) -> None:
     """A parameter was edited: schedule a live rebuild."""
     from ..jobs.scheduler import SCHEDULER
@@ -43,6 +53,9 @@ def params_changed(obj) -> None:
 
 
 def formula_changed(obj) -> None:
+    """A new formula: take its recommended surface offset (this also schedules the rebuild)."""
+    if is_fractal(obj):
+        obj.iteron.surface_offset = REGISTRY[obj.iteron.formula].surface_offset
     params_changed(obj)
 
 

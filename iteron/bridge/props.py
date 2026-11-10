@@ -18,6 +18,9 @@ from ..core.formula import REGISTRY, by_family
 from ..core.params import Param
 
 GROUP_PREFIX = "f_"
+SHADING_MODES = (("FIELD", "Field Normals", "Normals from the fractal's own field: detail finer than the faces shows"),
+                 ("SMOOTH", "Smooth", "Normals averaged from the faces"),
+                 ("FLAT", "Flat", "One normal per face"))
 COLOR_MODES = (("TRAP", "Orbit Trap", "Colour by how close the orbit came to the origin"),
                ("ITERATIONS", "Iterations", "Colour by how many iterations the point took"),
                ("RADIUS", "Radius", "Colour by the orbit's final distance from the origin"),
@@ -37,6 +40,8 @@ def _color_mode_changed(self, _context):
 def _shading_changed(self, _context):
     from .mesh_write import apply_shading
     apply_shading(self.id_data)
+    if self.shading == "FIELD":                       # field normals come from the field: rebuild
+        _changed(self, _context)
 
 
 def blender_property(param: Param):
@@ -92,14 +97,22 @@ def _settings_annotations(groups: dict[str, type]) -> dict:
                               description="Half-size of the sampling box (0 uses the formula's own)", **refresh),
         "preview_resolution": IntProperty(name="Preview", default=96, min=16, max=256,
                                           description="Voxels along the longest side for the live preview", **refresh),
-        "final_resolution": IntProperty(name="Final", default=256, min=32, max=1024,
+        "final_resolution": IntProperty(name="Final", default=256, min=32, max=2048,
                                         description="Voxels along the longest side for Build Final"),
+        "simplify": FloatProperty(name="Simplify", default=0.1, min=0.0, max=2.0, soft_max=0.5, precision=2,
+                                  description="Build Final merges flat areas whose faces stay within this many voxels "
+                                  "of the surface; detail keeps every face (0 = off)"),
         "surface_offset": FloatProperty(name="Surface Offset", default=0.5, soft_min=0.0, soft_max=2.0, min=-4.0, max=8.0,
-                                        description="Where the surface sits, in voxels of distance: 0.5 closes "
-                                        "estimators that never go negative inside", **refresh),
+                                        description="How far out the surface sits, in voxels of true distance (the "
+                                        "estimator is calibrated per build). Lower is crisper; too low breaks thin "
+                                        "parts into dust", **refresh),
+        "refine_steps": IntProperty(name="Refine", default=2, min=0, max=6,
+                                    description="Newton steps moving every vertex onto the fractal's true surface: "
+                                    "crisp ridges and grooves (0 = off, faster)", **refresh),
         "color_mode": EnumProperty(name="Color", items=COLOR_MODES, default="TRAP", update=_color_mode_changed,
                                    description="What drives the colour ramp"),
-        "smooth": BoolProperty(name="Smooth Shading", default=True, update=_shading_changed),
+        "shading": EnumProperty(name="Shading", items=SHADING_MODES, default="FIELD", update=_shading_changed,
+                                description="How the surface's normals are made"),
         # the last build, written by the scheduler
         "built_hash": StringProperty(options={"HIDDEN"}),
         "built_resolution": IntProperty(options={"HIDDEN"}),

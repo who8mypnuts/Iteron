@@ -8,12 +8,11 @@ from bpy.props import EnumProperty
 
 from ..bridge import material
 from ..bridge.props import FORMULA_ITEMS, group
-from ..bridge.state import is_fractal, is_stale
+from ..bridge.state import final_estimate, is_fractal, is_stale
 from ..core.formula import REGISTRY
-from ..core.grid import estimate_bytes
 from ..jobs.scheduler import SCHEDULER, Running
 from . import icons
-from .draw import draw_params
+from .draw import REGION_GROUPS, draw_group, draw_params
 
 
 class ITERON_PT_main(bpy.types.Panel):
@@ -44,12 +43,12 @@ def draw_quick_start(layout, context) -> None:
     wm = context.window_manager
     logo = icons.icon("iteron_logo")
     if logo:
-        layout.template_icon(icon_value=logo, scale=6.0)
-    column = layout.column(align=True)
-    column.prop(wm, "iteron_new_formula", text="")
+        layout.template_icon(icon_value=logo, scale=4.0)
+    layout.template_icon_view(wm, "iteron_new_formula", show_labels=True, scale=7.0, scale_popup=5.0)
     entry = REGISTRY.get(wm.iteron_new_formula)
     if entry is not None:
-        column.label(text=entry.description)
+        layout.label(text=entry.name)
+        layout.label(text=entry.description)
     operator = layout.operator("iteron.add_fractal", text="Add Fractal", icon="ADD")
     operator.formula = wm.iteron_new_formula
     layout.label(text="Or Shift+A ▸ Iteron Fractal", icon="INFO")
@@ -62,14 +61,16 @@ def draw_fractal(layout, obj) -> None:
     layout.prop(s, "formula", text="")
     row = layout.row(align=True)
     row.operator_menu_enum("iteron.apply_preset", "preset", text="Presets", icon="PRESET")
+    row.operator("iteron.save_preset", text="", icon="ADD")
+    row.operator_menu_enum("iteron.delete_preset", "preset", text="", icon="REMOVE")
     row.operator("iteron.reset_formula", text="", icon="LOOP_BACK")
     _draw_status(layout, obj)
     header, body = layout.panel("iteron_shape", default_closed=False)
     header.label(text="Shape")
     if body is not None:
         draw_params(body, group(s), entry)
-    _draw_region(layout, s)
-    _draw_mesh(layout, s)
+    _draw_region(layout, s, entry)
+    _draw_mesh(layout, obj)
     _draw_color(layout, obj)
 
 
@@ -92,17 +93,27 @@ def _draw_status(layout, obj) -> None:
         layout.label(text=s.message, icon="ERROR" if "failed" in s.message.lower() else "INFO")
 
 
-def _draw_region(layout, s) -> None:
+def _draw_region(layout, s, entry) -> None:
     header, body = layout.panel("iteron_region", default_closed=True)
     header.label(text="Region")
     if body is not None:
+        row = body.row(align=True)
+        row.operator("iteron.frame_view", icon="ZOOM_SELECTED")
+        row.operator("iteron.reset_region", text="", icon="LOOP_BACK")
         column = _split(body.column())
         column.prop(s, "auto_fit")
         column.prop(s, "center")
         column.prop(s, "size")
+        for name in REGION_GROUPS:
+            draw_group(body, group(s), entry, name)
 
 
-def _draw_mesh(layout, s) -> None:
+def _count(n: int) -> str:
+    return f"{n / 1e6:.1f} M" if n >= 1e6 else f"{n / 1e3:.0f} k"
+
+
+def _draw_mesh(layout, obj) -> None:
+    s = obj.iteron
     header, body = layout.panel("iteron_mesh", default_closed=True)
     header.label(text="Mesh")
     if body is None:
@@ -110,10 +121,15 @@ def _draw_mesh(layout, s) -> None:
     column = _split(body.column())
     column.prop(s, "preview_resolution")
     column.prop(s, "surface_offset")
-    column.prop(s, "smooth")
+    column.prop(s, "refine_steps")
+    column.prop(s, "shading")
     column.separator()
     column.prop(s, "final_resolution")
-    column.label(text=f"Up to ~{estimate_bytes(s.final_resolution) / 1e9:.1f} GB while building")
+    column.prop(s, "simplify")
+    estimate = final_estimate(obj)
+    if estimate is not None:
+        faces, size = estimate
+        column.label(text=f"About {_count(faces)} faces · {size / 1e9:.1f} GB", icon="INFO")
     body.operator("iteron.build_final", icon="MESH_ICOSPHERE")
     body.operator("iteron.apply_mesh", icon="CHECKMARK")
 
@@ -140,8 +156,17 @@ def _split(layout):
 classes = (ITERON_PT_main,)
 
 
+_GALLERY: list = []              # Blender needs dynamic enum items kept alive
+
+
+def _gallery_items(_self, _context):
+    """The formulas with their thumbnails, for the quick-start's icon view (the numbers match FORMULA_ITEMS)."""
+    _GALLERY[:] = [(i[0], i[1], i[2], icons.thumbnail(i[0]), i[4]) for i in FORMULA_ITEMS if i[0]]
+    return _GALLERY
+
+
 def register_extra() -> None:
-    bpy.types.WindowManager.iteron_new_formula = EnumProperty(name="Formula", items=FORMULA_ITEMS,
+    bpy.types.WindowManager.iteron_new_formula = EnumProperty(name="Formula", items=_gallery_items,
                                                               description="The fractal Add Fractal creates")
 
 

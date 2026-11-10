@@ -21,7 +21,7 @@ class VIEW3D_MT_iteron_add(bpy.types.Menu):
                 layout.separator()
             layout.label(text=family)
             for entry in entries:
-                layout.operator("iteron.add_fractal", text=entry.name).formula = entry.id
+                layout.operator("iteron.add_fractal", text=entry.name, icon_value=icons.thumbnail(entry.id)).formula = entry.id
 
 
 def _add_menu(self, _context):

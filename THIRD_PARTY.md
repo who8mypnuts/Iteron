@@ -16,6 +16,11 @@ written from their published mathematics.
 | Sierpinski Tetrahedron | Wacław Sierpiński; Knighty's kaleidoscopic-IFS folds | Written for Iteron |
 | Octahedral KIFS | Knighty's kaleidoscopic IFS with octahedral symmetry and a per-iteration rotation | Written for Iteron |
 | Quaternion Julia | Julia sets in the quaternions (Norton 1982); the distance estimate of Hart, Sandin and Kauffman (1989) | Written for Iteron |
+| Folding Int Pow | The Mandelbulb3D formula of that name: a box fold, a triplex power, a z multiplier | Translated from the Collection's `3D - Folding Int Pow.frag` (Stan Ragets, MIT) |
+| Lambdabulb | The lambda map z ↦ λz(1 − zⁿ⁻¹) in triplex arithmetic | Translated from the Collection's `3D - Lambdabulb.frag` (Stan Ragets, MIT); Iteron uses a running derivative instead of the fragment's finite differences |
+| ABoxMod1 | The Mandelbulb3D formula of that name: per-axis box fold, sphere fold, scale, offset, rotation | Translated from the Collection's `3D - Amazing Box Mod1.frag` (Stan Ragets, MIT) |
+| Jerusalem Cube | Eric Baird's Jerusalem cube: a cube minus a cross of slabs, corner and edge cubes at ratios 1 + √2 and (1 + √2)² | Translated from the Collection's `3D - Jerusalem Cube.frag` (Stan Ragets, MIT) |
+| Koch Tetrahedron | The 3D Koch snowflake (its limit is a cube) | Translated from the Collection's `3D - Koch Tetrahedron.frag` (Stan Ragets, MIT) |
 
 `ops.sd_box` — the signed distance to a box — follows Inigo Quilez's published distance functions
 (https://iquilezles.org/articles/distfunctions/), released under the MIT licence:
@@ -36,6 +41,14 @@ written from their published mathematics.
 | `core/grid.py` | `fragments/mesh.py` (voxel-offset threshold, memory estimate, coarse fit) | Rewritten around `GridPlan` |
 
 Naive surface nets: Sarah F. Frisken Gibson, *Constrained Elastic Surface Nets* (1998).
+
+## Techniques
+
+* **Simplification** (`core/simplify.py`): adaptive vertex clustering on the voxel octree after Scott Schaefer and Joe
+  Warren, *Adaptive Vertex Clustering Using Octrees* (2003), with the quadric error function of Tao Ju, Frank Losasso,
+  Scott Schaefer and Joe Warren, *Dual Contouring of Hermite Data* (2002). Written for Iteron.
+* **Normals and refinement** (`core/refine.py`): the tetrahedral four-sample gradient popularised by Inigo Quilez
+  (https://iquilezles.org/articles/normalsSDF/). Written for Iteron.
 
 ## Branding
 

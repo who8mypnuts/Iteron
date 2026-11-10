@@ -145,9 +145,14 @@ def _loop_glsl(count, max_count, state, body, until):
     tracer.line(f"if ({index} >= int({code(count)})) break;")
     current = tuple(S(t, n) for t, n in zip(types, names))
     new = tuple(body(S("float", f"float({index})"), current))
-    for name, type_, value in zip(names, types, new):
+    # the update is simultaneous: a value that *is* a loop variable (state passed through) is copied first, or an
+    # earlier assignment would overwrite it before it is read
+    settled = []
+    for type_, value in zip(types, new):
         if type_of(value) != type_:
             raise TraceError(f"loop state changed type from {type_} to {type_of(value)}")
+        settled.append(tracer.value(type_, code(value)) if code(value) in names else value)
+    for name, value in zip(names, settled):
         tracer.line(f"{name} = {code(value)};")
     tracer.line(f"{counter} += 1.0;")
     if until is not None:

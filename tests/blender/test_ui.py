@@ -58,6 +58,10 @@ class FakeLayout:
     def template_icon(self, **_kwargs):
         self.log.append(("icon",))
 
+    def template_icon_view(self, data, name, **_kwargs):
+        assert name in data.bl_rna.properties
+        self.log.append(("icon_view", name))
+
     def separator(self, **_kwargs):
         pass
 
@@ -65,7 +69,7 @@ class FakeLayout:
 def test_quick_start_draws(addon):
     log = []
     panel.draw_quick_start(FakeLayout(log), bpy.context)
-    assert ("operator", "iteron.add_fractal") in log
+    assert ("operator", "iteron.add_fractal") in log and ("icon_view", "iteron_new_formula") in log
 
 
 @pytest.mark.parametrize("fid", list(REGISTRY))

@@ -16,8 +16,9 @@ class IteronPreferences(bpy.types.AddonPreferences):
                                 ("CPU", "CPU", "numpy on the CPU: slower, float64, works everywhere")))
     debounce: IntProperty(name="Live Update Delay", default=120, min=0, max=2000, subtype="TIME_ABSOLUTE",
                           description="Milliseconds to wait after a change before rebuilding the preview")
-    max_resolution: IntProperty(name="Resolution Limit", default=512, min=64, max=1024,
-                                description="The highest Final resolution Build Final accepts (memory grows with its cube)")
+    max_resolution: IntProperty(name="Resolution Limit", default=1024, min=64, max=2048,
+                                description="The highest Final resolution Build Final accepts (faces, time and memory "
+                                "grow about as its 2.5th power)")
 
     def draw(self, _context):
         layout = self.layout
@@ -29,7 +30,7 @@ class IteronPreferences(bpy.types.AddonPreferences):
 
 class _Defaults:
     """Preference values when the add-on is not registered as an extension (scripts, tests)."""
-    device, debounce, max_resolution = "AUTO", 120, 512
+    device, debounce, max_resolution = "AUTO", 120, 1024
 
 
 def preferences():

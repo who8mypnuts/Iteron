@@ -19,8 +19,17 @@ def kernel(entry: Formula, pos, p: Values):
     """`(distance, trap, iterations, radius)` of `entry` at `pos`."""
     if entry.kind == DIRECT:
         distance, trap = entry.fn(pos, p)
-        return distance, trap, trap, ops.log(1.0 + ops.length(pos))
-    return _iterated(entry, pos, p)
+        distance, trap, iterations, radius = distance, trap, trap, ops.log(1.0 + ops.length(pos))
+    else:
+        distance, trap, iterations, radius = _iterated(entry, pos, p)
+    return _cut(distance, pos, p), trap, iterations, radius
+
+
+def _cut(distance, pos, p: Values):
+    """Intersect with the half-space behind the cutting plane (when the cut is on)."""
+    along = ops.select(p.cut_axis < 0.5, pos.x, ops.select(p.cut_axis < 1.5, pos.y, pos.z))
+    side = (along - p.cut_offset) * ops.select(p.cut_flip, -1.0, 1.0)
+    return ops.select(p.cut, ops.max(distance, side), distance)
 
 
 def _iterated(entry: Formula, pos, p: Values):

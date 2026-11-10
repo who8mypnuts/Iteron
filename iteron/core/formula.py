@@ -17,7 +17,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 from . import vec
-from .params import Bool, Float, Int, Param, Vec3, layout, resolve
+from .params import Bool, Enum, Float, Int, Param, Vec3, layout, resolve
 from .trace import S, literal
 
 ESCAPE, IFS, DIRECT = "escape", "ifs", "direct"
@@ -38,6 +38,15 @@ SHARED: dict[str, tuple[Param, ...]] = {
     ),
     DIRECT: (),
 }
+# options every formula has, whatever its kind
+GLOBAL: tuple[Param, ...] = (
+    Bool("cut", False, group="Cut", description="Slice the fractal open with a plane (the cut face is closed)"),
+    Enum("cut_axis", "Z", items=(("X", "X", "Cut across x"), ("Y", "Y", "Cut across y"), ("Z", "Z", "Cut across z")),
+         label="Axis", group="Cut", description="The axis the cutting plane is square to"),
+    Float("cut_offset", 0.0, min=-2.0, max=2.0, label="Offset", group="Cut", subtype="DISTANCE",
+          description="Where the plane sits along its axis"),
+    Bool("cut_flip", False, label="Flip", group="Cut", description="Keep the other side"),
+)
 
 
 @dataclass(frozen=True)
@@ -53,6 +62,9 @@ class Formula:
     shape: Callable | None = None           # IFS: the final shape's distance, `shape(z, p)`, divided by |dr|
     prepare: Callable | None = None         # values derived once from the parameters, `prepare(p) -> dict`
     bounds: float = 2.0                     # half-size of the default sampling cube
+    surface_offset: float = 0.6             # recommended surface offset, voxels of true distance (see refine.py):
+                                            # higher for fine, dense detail that would alias (Mandelbox), lower
+                                            # where holes matter (sponges)
     presets: dict[str, dict[str, Any]] = field(default_factory=dict)
     version: int = 1                        # bump when the maths changes, so cached meshes count as stale
 
@@ -81,7 +93,7 @@ def formula(name: str, *, family: str, kind: str, params: tuple[Param, ...] = ()
     `{"iterations": {"default": 20}}`."""
     if family not in FAMILIES or kind not in SHARED:
         raise ValueError(f"{name}: unknown family {family!r} or kind {kind!r}")
-    shared = tuple(replace(p, **(overrides or {}).get(p.name, {})) for p in SHARED[kind])
+    shared = tuple(replace(p, **(overrides or {}).get(p.name, {})) for p in SHARED[kind] + GLOBAL)
 
     def register(fn: Callable) -> Callable:
         entry = Formula(id=slug(name), name=name, family=family, kind=kind, fn=fn, params=shared + tuple(params),

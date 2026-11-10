@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: MIT
-"""The Iteron icon and logo as Blender previews (`icon_value`).
+"""The Iteron icon, the logo and the formula thumbnails as Blender previews (`icon_value`).
 
-Loaded from `iteron/icons/` (filled by the build from `branding/addon/`); when running from the repository the
-branding folder is used directly, so the artwork exists in one place only.
+The icon and logo come from `iteron/icons/` (filled by the build from `branding/addon/`; from a checkout the branding
+folder is read directly, so the artwork exists in one place only). Thumbnails are `iteron/thumbnails/<formula>.png`
+(rendered by tools/render_thumbnails.py) and are named `thumb_<formula>`.
 """
 
 from __future__ import annotations
@@ -11,9 +12,10 @@ from pathlib import Path
 
 import bpy.utils.previews
 
+PACKAGE = Path(__file__).resolve().parent.parent
 NAMES = ("iteron_icon", "iteron_logo")
-_FOLDERS = (Path(__file__).resolve().parent.parent / "icons",
-            Path(__file__).resolve().parent.parent.parent / "branding" / "addon")
+_FOLDERS = (PACKAGE / "icons", PACKAGE.parent / "branding" / "addon")
+THUMBNAILS = PACKAGE / "thumbnails"
 _PREVIEWS = None
 
 
@@ -24,6 +26,10 @@ def icon(name: str) -> int:
     return _PREVIEWS[name].icon_id
 
 
+def thumbnail(formula_id: str) -> int:
+    return icon(f"thumb_{formula_id}")
+
+
 def register() -> None:
     global _PREVIEWS
     _PREVIEWS = bpy.utils.previews.new()
@@ -31,6 +37,8 @@ def register() -> None:
         path = next((folder / f"{name}.png" for folder in _FOLDERS if (folder / f"{name}.png").is_file()), None)
         if path is not None:
             _PREVIEWS.load(name, str(path), "IMAGE")
+    for path in sorted(THUMBNAILS.glob("*.png")):
+        _PREVIEWS.load(f"thumb_{path.stem}", str(path), "IMAGE")
 
 
 def unregister() -> None:

@@ -19,6 +19,7 @@ def add_fractal(context, formula_id: str):
     obj.location = context.scene.cursor.location
     obj.iteron.is_fractal = True
     obj.iteron.formula = formula_id
+    obj.iteron.surface_offset = entry.surface_offset
     material.ensure(obj)
     for other in context.selected_objects:
         other.select_set(False)

@@ -8,8 +8,8 @@ any other mesh.
 This document is the plan: how it looks, how it works, what is built first, and what comes from the two sample
 sources (`sample_source/blender-addon-template` and `sample_source/Fractalchemy`).
 
-> **Status: Phases 0 and 1 are implemented.** §9 records the measured answers, what changed from the design below, and
-> what could not be verified here. Phase 2 is next.
+> **Status: Phases 0 – 2 are implemented.** §9 records the measured answers, what changed from the design below,
+> and what could not be verified here. Phase 3 (the live ray-marched preview) is next.
 
 **Decisions** (reasoning in the sections that follow; your answers to the first round of questions are recorded in §12):
 
@@ -574,13 +574,71 @@ both, and tests check it against exact Mosely membership. Fractalchemy's fragmen
 
 A first manual pass on Blender 5.x should cover these.
 
-### Phase 2 — polish and breadth
+### Phase 2 — detail, polish and breadth ✅ done
+Planned:
 * A thumbnail gallery in the quick-start and formula menu.
 * User presets (save / delete per formula). Reading and writing files outside the add-on needs the manifest's `files`
   permission.
 * *Field gradient* normals, and a cut plane (slice the fractal open).
 * The next batch of formulas from §6.
 * A memory estimate shown before *Build Final*, and a clearer first-run hint.
+
+Added at your request: **make the fine detail visible.** The Phase 1 Mandelbox looked chunky even as a final build.
+
+**What was wrong** (measured against reference images ray-marched straight from each formula's estimator):
+* **The main cause was the level, not the resolution.** Distance estimators underestimate — along a view ray the
+  Mandelbox's reads about ¼ of the true distance, the bulbs' about ½. "Half a voxel of *estimated* distance" therefore
+  put the Mandelbox's surface about two voxels out, which filled every groove. Doubling the resolution cost 8× the
+  faces (13.3 M) and didn't help, because the shell inflated with it.
+* **Vertices sat on a linear guess** between two samples, so ridges melted.
+* **Normals came from the facets**, so nothing finer than a face showed.
+
+**What was built** (`core/refine.py`, `core/blocks.py`, `core/simplify.py`):
+* **Calibrated level.** Each build measures how much the estimator underestimates *on its own surface*: pilot
+  patches at full resolution, placed on near-surface points from the coarse pass, are re-levelled until the median
+  |∇d| settles. It settles at about 0.25 for the Mandelbox, 0.35 for the bulbs and 0.95 for the sponges; the first
+  refinement pass then re-measures it on the whole surface. The Surface Offset is now in voxels of *true* distance,
+  and each formula brings a recommended one: 1.25 for the Mandelbox, whose sub-voxel detail would otherwise alias
+  into speckle, and 0.5 for the sponges, whose holes must stay open.
+* **Refinement.** Newton steps move every vertex onto the level set. Each uses a 5-point stencil (the point plus a
+  tetrahedron: exact value, exact gradient), and two steps put 95 % of vertices within 0.01 voxel of the surface
+  (it was 0.1 – 0.4). The last stencil also gives the **field normals** (Blender custom normals) and the exact vertex
+  colours.
+* **Sparse blocks.** A build is meshed 160³ block by block, with only the blocks the surface can reach sampled, so
+  memory follows the surface and resolutions up to 1024 work. Blocks carry an 8-voxel halo, matching the 8
+  ambiguity-resolution passes, so they agree exactly at the seams: a test checks that a many-block build equals a
+  one-block build. Surface assembly numbers cubes with a dense mask when the grid is small enough (6× faster than
+  sorting).
+* **Simplification** (optional, Build Final only; default 0.1 voxel). Adaptive vertex clustering on the voxel octree:
+  a cell merges when its vertices' tangent planes agree (the dual-contouring QEF), and clusters that would make a
+  non-manifold edge are split again. It keeps the mesh closed and manifold. It removes about 55 % of the Menger's
+  faces but only about 10 – 25 % of the Mandelbox's and the bulbs' — their surfaces are detailed at every scale, so
+  their detail *is* their face count.
+* **Face and memory estimate** for Build Final, scaled from the current mesh (faces ≈ resolution^2.5, exponent
+  measured at 2.2 – 2.7).
+* **Frame View** (Region): the region becomes the viewport's pivot at its current zoom, so a close-up spends the
+  whole resolution on what is seen.
+
+**Result.** At 256³ the whole Mandelbox shows the reference's holes, arcs and rings, cleanly. The Mandelbulb and
+Menger match their references to the resolution limit.
+
+**Also done:**
+* **The cut plane:** a global `Cut` group every formula gets, shown under Region.
+* **User presets:** JSON files in the extension's user folder; the manifest declares `files`.
+* **Thumbnails:** EEVEE-rendered and transparent. They fill the quick-start's icon gallery and the Add menu, and the
+  README gallery is composed from them (`tools/render_thumbnails.py`, `tools/compose_gallery.py`).
+* **Five new formulas:** Folding Int Pow, Lambdabulb (with a running derivative in place of the fragment's
+  finite differences), ABoxMod1, Jerusalem Cube and Koch Tetrahedron. There are 13 in all.
+
+**Dropped from this batch:** the Sphere-Inversion IFS and the Kleinian Limit Set. Both are infinite tilings whose
+structure is finer than any practical voxel, so as meshes they are noise or cut slabs. They suit the Phase 3
+ray-marched preview better. Translating the Kleinian did expose a tracer bug, now fixed and tested: loop state that
+is passed through unchanged was overwritten before being read in GLSL.
+
+**Performance notes.**
+* A 384³ surface-nets pass takes about 4 s.
+* Writing 1.1 M faces with custom normals into Blender takes about 3 s on the main thread.
+* CPU builds are about 10× slower than GPU ones, mostly in kernel evaluation.
 
 ### Phase 3 — live ray-marched viewport preview
 * A `SpaceView3D` draw handler ray-marches the traced kernel inside the object's bounding box, in object space.

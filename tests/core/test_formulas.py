@@ -79,3 +79,23 @@ def test_every_preset_has_a_surface(fid, preset):
     assert np.isfinite(out).all()
     near = out[:, 0] < 0.005 * b          # (linear estimates are very conservative far out, so keep this tight)
     assert 0.0005 < near.mean() < 0.98, f"{fid}/{preset}: no surface inside its bounds"
+
+
+def test_loop_state_passed_through_is_updated_simultaneously():
+    """A loop body that hands a state variable on unchanged (a history of the orbit) must see the old value in GLSL
+    as numpy does — the tracer copies such values before assigning."""
+    from iteron.core import ops
+    from iteron.core.trace import S, Tracer, tracing
+
+    def body(_i, state):
+        x, previous, older = state
+        return x + 1.0, x, previous
+
+    (x, previous, older), _n = ops.loop(3, 3, (10.0, 0.0, 0.0), body)
+    assert (x, previous, older) == (13.0, 12.0, 11.0)
+    tracer = Tracer()
+    with tracing(tracer):
+        ops.loop(3, 3, (S("float", "seed"), 0.0, 0.0), body)
+    lines = [line.strip() for line in tracer.lines]
+    first = next(i for i, line in enumerate(lines) if line.startswith("l1 = "))
+    assert not any(line.endswith("= l1;") for line in lines[first:]), "a loop variable is read after being assigned"

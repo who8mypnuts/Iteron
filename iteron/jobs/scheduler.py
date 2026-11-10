@@ -26,6 +26,7 @@ from .steps import Cancelled, run_to_end
 TICK = 0.02            # seconds between ticks while there is work
 BUDGET = 0.03          # seconds of work per tick or per draw callback
 GPU_STALL = 1.5        # seconds without a viewport draw before a GPU build moves to the CPU
+PREVIEW_REFINE = 1     # previews refine at most this many steps (finals take the setting)
 QUEUE_IN_BACKGROUND = False      # tests set this to drive the timed path by calling `tick()` themselves
 
 
@@ -207,7 +208,9 @@ class Scheduler:
         from ..bridge.state import shape_hash
         s = obj.iteron
         spec = BuildSpec(s.formula, read_values(s), tuple(s.center), s.size, s.auto_fit,
-                         s.final_resolution if final else s.preview_resolution, s.surface_offset, final)
+                         s.final_resolution if final else s.preview_resolution, s.surface_offset, final,
+                         s.refine_steps if final else min(s.refine_steps, PREVIEW_REFINE), s.shading == "FIELD",
+                         s.simplify if final else 0.0)
         sampler = CpuSampler() if force_cpu else make_sampler()
         return Running(obj.session_uid, obj.name, final, build(spec, sampler), spec, shape_hash(obj), sampler.name,
                        fallback=force_cpu)
@@ -236,7 +239,7 @@ class Scheduler:
         colors.bake(obj)
         s = obj.iteron
         s.built_hash, s.built_resolution, s.built_final = running.shape, running.spec.resolution, running.final
-        s.built_faces, s.built_seconds, s.built_device = len(result.quads), result.seconds, result.sampler
+        s.built_faces, s.built_seconds, s.built_device = result.faces, result.seconds, result.sampler
         if not running.fallback:
             s.message = ""
 

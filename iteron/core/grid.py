@@ -8,12 +8,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .samples import BYTES_PER_VOXEL
-
 FIT_RESOLUTION = 40        # the coarse pass auto-fit samples
 FIT_MARGIN = 1.5           # coarse voxels added around what the coarse pass found
 PAD = 2                    # fine voxels of empty border, so the surface closes without clipping the fractal
-MESHING_BYTES = 4          # per voxel: surface nets' inside masks and crossings
+SURFACE_EXPONENT = 2.5     # fractal surfaces grow faster than res²: faces ≈ faces₀ (res / res₀)^2.5 (2.2 – 2.7 seen)
+BYTES_PER_FACE = 240       # peak build memory per output face (edges, assembly, refinement, the Blender mesh)
 
 
 @dataclass(frozen=True)
@@ -68,6 +67,11 @@ def fitted_bounds(coarse: GridPlan, distance: np.ndarray, lo, hi) -> tuple[np.nd
     return np.maximum(found_lo, lo), np.minimum(found_hi, hi)
 
 
-def estimate_bytes(resolution: int) -> int:
-    """Peak memory of a build at `resolution` (the samples plus meshing's working arrays)."""
-    return int(resolution) ** 3 * (BYTES_PER_VOXEL + MESHING_BYTES)
+def estimate_faces(faces: int, resolution: int, target: int) -> int:
+    """About how many faces a build at `target` will have, from one at `resolution` with `faces`."""
+    return int(faces * (target / max(resolution, 1)) ** SURFACE_EXPONENT)
+
+
+def estimate_bytes(faces: int) -> int:
+    """About the peak memory of a build that makes `faces` faces (blocks keep the sampled volume small)."""
+    return int(faces) * BYTES_PER_FACE + 64 * 1024 * 1024

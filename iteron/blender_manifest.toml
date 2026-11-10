@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "iteron"
-version = "0.1.0"
+version = "0.2.0"
 name = "Iteron"
 tagline = "3D fractals as real, editable Blender meshes"
 maintainer = "Stan Ragets"
@@ -13,6 +13,9 @@ blender_version_min = "4.2.0"
 
 license = ["SPDX:MIT"]
 copyright = ["2026 Stan Ragets"]
+
+[permissions]
+files = "Save and load your own fractal presets"
 
 [build]
 paths_exclude_pattern = ["__pycache__/", "/.git/", "*.zip"]
