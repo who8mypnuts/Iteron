@@ -131,7 +131,7 @@ def _settings_annotations(groups: dict[str, type]) -> dict:
                               description="Half-size of the sampling box (0 uses the formula's own)", **refresh),
         "preview_resolution": IntProperty(name="Preview", default=96, min=16, max=256,
                                           description="Voxels along the longest side for the live preview", **refresh),
-        "final_resolution": IntProperty(name="Final", default=256, min=32, max=2048,
+        "final_resolution": IntProperty(name="Final", default=256, min=32, max=4096,
                                         description="Voxels along the longest side for Build Final"),
         "simplify": FloatProperty(name="Simplify", default=0.1, min=0.0, max=2.0, soft_max=0.5, precision=2,
                                   description="Build Final merges flat areas whose faces stay within this many voxels "

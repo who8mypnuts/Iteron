@@ -71,6 +71,20 @@ def test_quick_start_draws(addon):
     log = []
     panel.draw_quick_start(FakeLayout(log), bpy.context)
     assert ("operator", "iteron.add_fractal") in log and ("icon_view", "iteron_new_formula") in log
+    assert ("prop", "iteron_new_family") in log and ("menu", "VIEW3D_MT_iteron_flame_add") in log
+
+
+def test_the_gallery_shows_one_family_and_follows_the_family():
+    from iteron.core.formula import by_family, slug
+    from iteron.ui import quick_start
+    wm = bpy.context.window_manager
+    families = quick_start._family_items(wm, bpy.context)
+    assert [item[0] for item in families] == [slug(family) for family, _entries in by_family()]
+    for family, entries in by_family():
+        wm.iteron_new_family = slug(family)
+        shown = [item[0] for item in quick_start._gallery_items(wm, bpy.context)]
+        assert shown == [e.id for e in entries]
+        assert wm.iteron_new_formula in shown           # switching family picks one of its formulas
 
 
 @pytest.mark.parametrize("fid", list(REGISTRY))
@@ -83,9 +97,13 @@ def test_fractal_panel_draws_every_parameter(fractal, fid):
     assert ("ramp", material.RAMP_NODE) in log and ("operator", "iteron.build_final") in log
 
 
-def test_add_menu_lists_every_formula():
+def test_add_menu_lists_every_formula_by_family():
     log = []
     menus.VIEW3D_MT_iteron_add.draw(type("M", (), {"layout": FakeLayout(log)})(), bpy.context)
+    assert [name for kind, name in log if kind == "menu"] == [m.bl_idname for m in menus.FAMILY_MENUS]
+    log.clear()
+    for menu in menus.FAMILY_MENUS:
+        menu.draw(type("M", (), {"layout": FakeLayout(log)})(), bpy.context)
     assert sum(1 for kind, name in log if kind == "operator") == len(REGISTRY)
 
 

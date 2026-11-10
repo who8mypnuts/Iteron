@@ -1,12 +1,26 @@
 # SPDX-License-Identifier: MIT
-"""Shift+A ▸ Iteron Fractal ▸ one entry per formula, grouped by family."""
+"""Shift+A ▸ Iteron Fractal ▸ a submenu per family (its icon the family's first thumbnail) ▸ one entry per formula;
+Shift+A ▸ Iteron Flame ▸ the bundled flames and opening a file."""
 
 from __future__ import annotations
 
 import bpy
 
-from ..core.formula import by_family
+from ..core.formula import by_family, slug
 from . import icons
+
+
+def _family_menu(family: str) -> type:
+    def draw(self, _context):
+        layout = self.layout
+        layout.operator_context = "EXEC_DEFAULT"
+        for entry in dict(by_family())[family]:
+            layout.operator("iteron.add_fractal", text=entry.name, icon_value=icons.thumbnail(entry.id)).formula = entry.id
+    return type(f"VIEW3D_MT_iteron_add_{slug(family)}", (bpy.types.Menu,),
+                {"bl_idname": f"VIEW3D_MT_iteron_add_{slug(family)}", "bl_label": family, "draw": draw})
+
+
+FAMILY_MENUS = tuple(_family_menu(family) for family, _entries in by_family())
 
 
 class VIEW3D_MT_iteron_add(bpy.types.Menu):
@@ -14,14 +28,10 @@ class VIEW3D_MT_iteron_add(bpy.types.Menu):
     bl_label = "Iteron Fractal"
 
     def draw(self, _context):
-        layout = self.layout
-        layout.operator_context = "EXEC_DEFAULT"
-        for index, (family, entries) in enumerate(by_family()):
-            if index:
-                layout.separator()
-            layout.label(text=family)
-            for entry in entries:
-                layout.operator("iteron.add_fractal", text=entry.name, icon_value=icons.thumbnail(entry.id)).formula = entry.id
+        families = dict(by_family())
+        for menu in FAMILY_MENUS:
+            first = families[menu.bl_label][0]
+            self.layout.menu(menu.bl_idname, icon_value=icons.thumbnail(first.id))
 
 
 class VIEW3D_MT_iteron_flame_add(bpy.types.Menu):
@@ -36,7 +46,7 @@ class VIEW3D_MT_iteron_flame_add(bpy.types.Menu):
             layout.operator("iteron.add_flame", text=flame.get("name", key)).flame = key
         layout.separator()
         layout.operator_context = "INVOKE_DEFAULT"
-        layout.operator("iteron.import_fractalchemy", text="Import Fractalchemy…", icon="IMPORT")
+        layout.operator("iteron.import_fractalchemy", text="Open a Flame File…", icon="IMPORT")
 
 
 def _add_menu(self, _context):
@@ -44,7 +54,7 @@ def _add_menu(self, _context):
     self.layout.menu(VIEW3D_MT_iteron_flame_add.bl_idname, icon_value=icons.icon("iteron_icon"))
 
 
-classes = (VIEW3D_MT_iteron_add, VIEW3D_MT_iteron_flame_add)
+classes = FAMILY_MENUS + (VIEW3D_MT_iteron_add, VIEW3D_MT_iteron_flame_add)
 
 
 def register_extra() -> None:

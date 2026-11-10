@@ -38,18 +38,27 @@ def main() -> int:
     bpy.ops.iteron.add_fractal(formula="mandelbulb")
     assert bpy.context.active_object.iteron.built_faces > 1000
     addon_utils.disable(NAME, default_set=True)
-    print(f"OK: {archive.name} installs, builds formulas, a flame, a hybrid and a fragment, disables and re-enables "
-          f"on Blender {bpy.app.version_string}")
+    print(f"OK: {archive.name} installs, builds formulas, a flame, a hybrid, a .flame file and a fragment, disables "
+          f"and re-enables on Blender {bpy.app.version_string}")
     return 0
 
 
 def check_phase_features() -> None:
-    """What later phases added, from the installed copy: a flame, a hybrid, and a fragment opened through the
-    importer (its includes come from the packaged shims; without a GPU context it reports that it needs one)."""
+    """What later phases added, from the installed copy: a flame, a hybrid, a newer formula, an Apophysis `.flame`,
+    and a fragment opened through the importer (its includes come from the packaged shims; without a GPU context it
+    reports that it needs one)."""
     bpy.ops.iteron.add_flame(flame="sierpinski_pyramid")
     assert len(bpy.context.active_object.data.vertices) > 10_000, "the flame built no points"
     bpy.ops.iteron.add_fractal(formula="hybrid")
     assert bpy.context.active_object.iteron.built_faces > 1000, bpy.context.active_object.iteron.message
+    bpy.ops.iteron.add_fractal(formula="icosahedral_kifs")
+    assert bpy.context.active_object.iteron.built_faces > 1000, bpy.context.active_object.iteron.message
+    flame = Path(os.environ["BLENDER_USER_RESOURCES"]) / "check.flame"
+    flame.write_text('<flame name="check"><xform weight="1" linear="1" coefs="0.5 0 0 0.5 0 0"/>'
+                     '<xform weight="1" linear="1" coefs="0.5 0 0 0.5 0.5 0"/>'
+                     '<xform weight="1" linear="1" coefs="0.5 0 0 0.5 0 0.5"/></flame>')
+    assert bpy.ops.iteron.import_fractalchemy(filepath=str(flame)) == {"FINISHED"}
+    assert len(bpy.context.active_object.data.vertices) > 10_000, "the .flame built no points"
     fixture = ROOT / "tests" / "fixtures" / "fractalchemy" / "PseudoKleinian.fafrag"
     assert bpy.ops.iteron.import_fractalchemy(filepath=str(fixture)) == {"FINISHED"}
     fragment = bpy.context.active_object

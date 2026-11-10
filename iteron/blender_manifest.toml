@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "iteron"
-version = "0.3.0"
+version = "0.4.0"
 name = "Iteron"
 tagline = "3D fractals, flames and fragments as real Blender meshes"
 maintainer = "Stan Ragets"
@@ -15,7 +15,7 @@ license = ["SPDX:MIT"]
 copyright = ["2026 Stan Ragets"]
 
 [permissions]
-files = "Open Fractalchemy and Fragmentarium files, save your own presets"
+files = "Open fractal files (.fa, .flame, .frag) and save your presets"
 
 [build]
 paths_exclude_pattern = ["__pycache__/", "/.git/", "*.zip"]

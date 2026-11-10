@@ -22,7 +22,7 @@ from .trace import S, literal
 
 ESCAPE, IFS, DIRECT = "escape", "ifs", "direct"
 LOG, LINEAR = "log", "linear"
-FAMILIES = ("Bulbs", "Boxes", "Sponges", "Kaleidoscopic IFS", "Quaternion", "Hybrids")
+FAMILIES = ("Bulbs", "Boxes", "Sponges & Cubes", "Kaleidoscopic IFS", "Hypercomplex", "Inversions", "Hybrids")
 UNIFORM = "iteron_u"          # the uniform block instance the GLSL reads parameters from
 
 SHARED: dict[str, tuple[Param, ...]] = {

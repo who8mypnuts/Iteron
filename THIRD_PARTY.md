@@ -21,6 +21,26 @@ written from their published mathematics.
 | ABoxMod1 | The Mandelbulb3D formula of that name: per-axis box fold, sphere fold, scale, offset, rotation | Translated from the Collection's `3D - Amazing Box Mod1.frag` (Stan Ragets, MIT) |
 | Jerusalem Cube | Eric Baird's Jerusalem cube: a cube minus a cross of slabs, corner and edge cubes at ratios 1 + √2 and (1 + √2)² | Translated from the Collection's `3D - Jerusalem Cube.frag` (Stan Ragets, MIT) |
 | Koch Tetrahedron | The 3D Koch snowflake (its limit is a cube) | Translated from the Collection's `3D - Koch Tetrahedron.frag` (Stan Ragets, MIT) |
+| Cosine Mandelbulb | Daniel White's alternative triplex formula (polar angle from the equator, 2009) | Written for Iteron |
+| Mandelbar Bulb | The tricorn / Mandelbar (conjugate before squaring; W. D. Crowe et al., 1989) lifted to the triplex power | Written for Iteron |
+| Burning Ship Bulb | The burning ship (Michelitsch and Rössler, 1992) lifted to the triplex power | Written for Iteron |
+| Bristorbrot | Doug Bristor's quadratic 3D map (fractalforums.com, 2011) | Written for Iteron |
+| Polynomial Bulb | Two White–Nylander triplex powers added | Written for Iteron |
+| Mandelbox 4D | Tom Lowe's Mandelbox folds in four dimensions (Tglad, 2010) | Written for Iteron |
+| Vary Scale Box | Tom Lowe's "vary scale" Mandelbox (the scale drifts by vary · (\|scale\| − 1) per iteration) | Written for Iteron |
+| Tetra Box | The Mandelbox with the Sierpinski tetrahedron's folds before the box fold | Written for Iteron |
+| Cantor Dust | Georg Cantor's set (1883) in three dimensions, as a folding IFS | Written for Iteron |
+| Vicsek Cube | Tamás Vicsek's fractal (1983) in three dimensions | Written for Iteron |
+| Koch Cube | The quadratic Koch surface built from cubes | Written for Iteron |
+| Twisted Menger | Knighty's Menger KIFS with a per-level rotation | Written for Iteron |
+| Gyroid Foam | Alan Schoen's gyroid (1970), carved at successively finer scales | Written for Iteron |
+| Icosahedral KIFS, Dodecahedral KIFS | Knighty's kaleidoscopic IFS (2010); the icosahedral group's 15 mirrors; the icosahedron and dodecahedron flakes | Written for Iteron (the fold reflects through the group's mirror planes; a test checks its invariance) |
+| Sierpinski Square Pyramid | The Sierpinski pyramid with a square base (five half-size copies) | Written for Iteron |
+| Quaternion Mandelbrot, Cubic Quaternion Julia | Quaternion iteration (Norton, 1982); distance estimate of Hart, Sandin and Kauffman (1989) | Written for Iteron |
+| Tetrabrot, Bicomplex Julia | Dominic Rochon's bicomplex Mandelbrot set, the tetrabrot (2000) | Written for Iteron |
+| Apollonian Packing | The Apollonian packing as a limit set of sphere inversion in a folded cell, as popularised by Inigo Quilez | Written for Iteron |
+| Pseudo Kleinian | Theli-at's and Knighty's pseudo-Kleinian (fractalforums.com, 2011): box fold, sphere inversion, the distance to the z axis | Written for Iteron from the published construction |
+| Sphere Inversion IFS | Octant fold, clamped sphere inversion and offset | Translated from the Collection's `3D - Sphere Inversion IFS.frag` (Stan Ragets, MIT), cut out as a chunk |
 | Hybrid | Mandelbulb3D's hybrids (Jesse and the Mandelbulb3D authors): formulas alternating within one iteration | Written for Iteron |
 
 `ops.sd_box` — the signed distance to a box — follows Inigo Quilez's published distance functions
@@ -34,6 +54,13 @@ written from their published mathematics.
 > portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
 
 ## Flames (`iteron/flames/`)
+
+* `.flame` files (`flame_xml.py`) are read after Fractalchemy's `fractal/formats/flame_xml.py` (Stan Ragets, MIT);
+  a test reads every sample flame with both readers and compares them.
+* `var_flam3.py` — flam3's and Apophysis 7X's further variations (butterfly, polar2, modulus, separation, waves2,
+  whorl, escher, foci, loonie, scry, curve, edisc, flux, cell, oscilloscope, bent2, auger, exp, log, sin, cos, sinh,
+  cosh, tan, tanh) — written for Iteron from their published formulas; each is checked against Fractalchemy's
+  implementation at test time.
 
 * The flame model, the chaos game, density meshing and the `.fa` / `.fa3d` readers are ported from Fractalchemy
   (`fractal/scene.py`, `render/compiled.py`, `render/cpu_engine.py`, `solid/voxelize.py`, `solid/io/blender.py`,

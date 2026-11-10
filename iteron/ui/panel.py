@@ -4,15 +4,14 @@
 from __future__ import annotations
 
 import bpy
-from bpy.props import EnumProperty
 
 from ..bridge import material
 from ..bridge.kinds import FormulaKind
-from ..bridge.props import FORMULA_ITEMS, locate
+from ..bridge.props import locate
 from ..bridge.state import final_estimate, is_fractal, is_stale
-from ..core.formula import REGISTRY
 from ..jobs.scheduler import SCHEDULER, Running
 from . import icons
+from .quick_start import draw_quick_start
 from .draw import REGION_GROUPS, Source, draw_group, draw_params
 
 
@@ -38,22 +37,6 @@ class ITERON_PT_main(bpy.types.Panel):
             draw_fractal(self.layout, obj)
         else:
             draw_quick_start(self.layout, context)
-
-
-def draw_quick_start(layout, context) -> None:
-    wm = context.window_manager
-    logo = icons.icon("iteron_logo")
-    if logo:
-        layout.template_icon(icon_value=logo, scale=4.0)
-    layout.template_icon_view(wm, "iteron_new_formula", show_labels=True, scale=7.0, scale_popup=5.0)
-    entry = REGISTRY.get(wm.iteron_new_formula)
-    if entry is not None:
-        layout.label(text=entry.name)
-        layout.label(text=entry.description)
-    operator = layout.operator("iteron.add_fractal", text="Add Fractal", icon="ADD")
-    operator.formula = wm.iteron_new_formula
-    layout.operator("iteron.import_fractalchemy", text="Open Fractalchemy File…", icon="IMPORT")
-    layout.label(text="Or Shift+A ▸ Iteron Fractal / Flame", icon="INFO")
 
 
 def draw_fractal(layout, obj) -> None:
@@ -189,21 +172,3 @@ def _split(layout):
 
 
 classes = (ITERON_PT_main,)
-
-
-_GALLERY: list = []              # Blender needs dynamic enum items kept alive
-
-
-def _gallery_items(_self, _context):
-    """The formulas with their thumbnails, for the quick-start's icon view (the numbers match FORMULA_ITEMS)."""
-    _GALLERY[:] = [(i[0], i[1], i[2], icons.thumbnail(i[0]), i[4]) for i in FORMULA_ITEMS if i[0]]
-    return _GALLERY
-
-
-def register_extra() -> None:
-    bpy.types.WindowManager.iteron_new_formula = EnumProperty(name="Formula", items=_gallery_items,
-                                                              description="The fractal Add Fractal creates")
-
-
-def unregister_extra() -> None:
-    del bpy.types.WindowManager.iteron_new_formula

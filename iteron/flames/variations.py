@@ -84,10 +84,12 @@ ALIASES: dict[str, str] = {}
 
 
 def variation(name: str, params: dict[str, float] | None = None, *, kind: str = NORMAL, z: str = NONE,
-              aliases: tuple[str, ...] = ()):
-    """Register the decorated function; short parameter names (`power`) get the variation's prefix."""
+              aliases: tuple[str, ...] = (), prefix: str = ""):
+    """Register the decorated function; short parameter names (`power`) get the variation's prefix (or `prefix`,
+    for plugins whose files use another, like oscilloscope's `oscope_`)."""
     def register(fn: Callable) -> Callable:
-        full = {(k if k.startswith(name + "_") else f"{name}_{k}"): float(v) for k, v in (params or {}).items()}
+        head = (prefix or name) + "_"
+        full = {(k if k.startswith(head) else head + k): float(v) for k, v in (params or {}).items()}
         REGISTRY[name] = Variation(name, fn, full, kind, z)
         for alias in aliases:
             ALIASES[alias] = name
@@ -105,6 +107,12 @@ def canonical(name: str) -> str:
     return ALIASES.get(name, name)
 
 
+def parameter_owner(key: str) -> str | None:
+    """The variation that declares parameter `key` (a flame file's attribute), if any."""
+    _load()
+    return next((var.name for var in REGISTRY.values() if key in var.params), None)
+
+
 def _load() -> None:
     if not REGISTRY:
-        from . import var_classic, var_depth, var_plugins  # noqa: F401  (registration by import)
+        from . import var_classic, var_depth, var_flam3, var_plugins  # noqa: F401  (registration by import)

@@ -2,10 +2,12 @@
 """Sparse sampling: the grid as blocks, and which blocks can hold surface.
 
 A build samples and meshes one block at a time (`surface_nets.crossings`), so memory follows the surface, and only
-blocks the surface can pass through are sampled at all. The coarse pass every build starts with decides: its samples
-with `d < coarse spacing` are *near* the surface (an estimator never overstates a distance, so every surface point is
-within reach of such a sample; interior samples count as near too, which only costs time), and a block is occupied
-when a near sample lies within reach of it. Calibration uses small full-resolution *pilot* patches centred on near
+blocks the surface can pass through are sampled at all. The coarse pass every build starts with decides first: its
+samples with `d < coarse spacing` are *near* the surface (an estimator never overstates a distance, so every surface
+point is within reach of such a sample; interior samples count as near too, which only costs time), and a block is
+occupied when a near sample lies within reach of it. Large builds then cull further: each occupied block is probed on
+a 16³ lattice and skipped when no probe comes near the surface (`can_hold_surface`), so sampling follows the surface
+at 2048³ and 4096³ too. Calibration uses small full-resolution *pilot* patches centred on near
 samples, so they land on the surface whatever the block layout.
 """
 
@@ -23,6 +25,8 @@ BLOCK = 160             # voxels per block side (the halo adds ~35 % to sampling
 HALO = AMBIGUITY_PASSES  # extra samples around a block: ambiguity fills reach one voxel per pass, so with a halo as
                          # deep as the passes, a block resolves its voxels exactly as the whole grid would
 PILOTS, PILOT_SIZE = 24, 16
+PROBES = 16             # probe points per block side for culling (one every ~12 voxels)
+SAFETY = 1.5            # culling's margin on the estimators' promise not to overstate
 
 
 @dataclass(frozen=True)
@@ -67,6 +71,27 @@ def occupied(plan: GridPlan, blocks: list[Block], near: np.ndarray, reach: float
         index = index[np.all((index >= 0) & (index < counts), axis=1)]
         marked[tuple(index.T)] = True
     return [b for b in blocks if marked[tuple(start // size for start in b.start)]]
+
+
+def probe_points(plan: GridPlan, block: Block, count: int = PROBES) -> tuple[np.ndarray, float]:
+    """A coarse lattice over the part of space that can put crossings in `block` — its core, widened by the halo
+    the ambiguity fills reach across and one voxel — as `(points (count³, 3), spacing in world units)`."""
+    reach = HALO + 1
+    lo = np.maximum(np.array(block.start) - reach, 0)
+    hi = np.minimum(np.array(block.stop) + reach, np.array(plan.shape) - 1)
+    axes = [np.linspace(a, b, count) for a, b in zip(lo, hi)]
+    step = float(max((b - a) / (count - 1) for a, b in zip(lo, hi)))
+    grid = np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1).reshape(-1, 3)
+    return plan.to_world(grid), step * plan.spacing
+
+
+def can_hold_surface(distance: np.ndarray, probe_spacing: float, level: float, voxel: float, gain: float = 1.0) -> bool:
+    """Whether any probe comes near enough to the level set. Distance estimates don't overstate, so a probe whose
+    estimate exceeds the distance to every point of its lattice cell (half the cell's diagonal) plus the level
+    proves that cell empty; a block is skipped when every cell is. The bound is widened by `SAFETY` (and by the
+    measured gain when an estimator reads long), because not every estimator keeps that promise everywhere."""
+    bound = (probe_spacing * 0.8660254 + level + voxel) * SAFETY * max(gain, 1.0)
+    return bool((distance <= bound).any())
 
 
 def pilot_plans(plan: GridPlan, near: np.ndarray, count: int = PILOTS, size: int = PILOT_SIZE,

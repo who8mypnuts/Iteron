@@ -9,7 +9,7 @@ from ..core.params import Bool, Float, Int, Vec3
 from .common import sort_descending
 
 
-@formula("Menger Sponge", family="Sponges", kind=IFS, bounds=1.1, surface_offset=0.5,
+@formula("Menger Sponge", family="Sponges & Cubes", kind=IFS, bounds=1.1, surface_offset=0.5,
          description="The Menger sponge as a kaleidoscopic IFS: fold, sort, scale by 3",
          params=(Float("scale", 3.0, min=1.5, max=4.0, hard_min=1.01, description="Scale of each iteration (3 is Menger)"),
                  Vec3("offset", (1.0, 1.0, 1.0), min=0.0, max=2.0, description="The corner the copies are scaled towards")),
@@ -26,7 +26,7 @@ def menger(z, dr, c, p):
     return ops.vec3(z.x, z.y, zz), dr * p.scale
 
 
-@formula("Mosely Snowflake", family="Sponges", kind=DIRECT, bounds=1.1, surface_offset=0.5,
+@formula("Mosely Snowflake", family="Sponges & Cubes", kind=DIRECT, bounds=1.1, surface_offset=0.5,
          description="A Menger-like cube keeping the edge and face cubes, dropping the corners (and the centre)",
          params=(Int("iterations", 4, min=1, max=7, description="Levels of subdivision"),
                  Float("cell_size", 1.0 / 3.0, min=0.2, max=0.45, description="Size of the cut corner cubes (1/3 is Mosely)"),
@@ -50,7 +50,7 @@ def mosely(pos, p):
     return d, level / p.iterations
 
 
-@formula("Jerusalem Cube", family="Sponges", kind=DIRECT, bounds=1.1, surface_offset=0.5,
+@formula("Jerusalem Cube", family="Sponges & Cubes", kind=DIRECT, bounds=1.1, surface_offset=0.5,
          description="A cube minus a cross of slabs; its 8 corner cubes and 12 edge cubes repeat the pattern",
          params=(Int("iterations", 4, min=1, max=10, description="Levels of the pattern"),
                  Float("ratio", 2.41421356, min=2.1, max=3.2, description="Cube to corner-cube ratio (1 + √2 is "

@@ -54,10 +54,10 @@ def _parser() -> argparse.ArgumentParser:
             sub.add_argument("--gpu", action="store_true", help="sample with moderngl (OpenGL 3.3) instead of numpy")
         else:
             sub.add_argument("-I", "--include", action="append", default=[], help="a folder searched for includes")
-    flame = meshing("flame", "a flame as points (or --solid) from the library or a .fa / .fa3d file", mesh_flame,
+    flame = meshing("flame", "a flame as points (or --solid) from the library or a .fa / .fa3d / .flame file", mesh_flame,
                     "flame")
     flame.add_argument("-n", "--points", type=int, default=1_000_000)
-    flame.add_argument("--index", type=int, default=0, help="which flame of a .fa file")
+    flame.add_argument("--index", type=int, default=0, help="which flame of a .fa or .flame file (from 0)")
     flame.add_argument("--seed", type=int, default=1)
     flame.add_argument("--solid", action="store_true", help="a density mesh instead of points")
     flame.add_argument("--threshold", type=float, default=0.15)
@@ -170,14 +170,16 @@ def mesh_flame(args) -> int:
     from ..jobs.flame_pipeline import MESH, POINTS, FlameSpec, build
     from .writers import write
     source = Path(args.flame)
-    if source.suffix.lower() == ".fa":
-        flame = formats.read_fa(source)[args.index].to_dict()
+    if source.suffix.lower() in (".fa", ".flame"):
+        from ..flames.flame_xml import read_flame
+        flames = formats.read_fa(source) if source.suffix.lower() == ".fa" else read_flame(source)
+        flame = flames[args.index].to_dict()
     elif source.suffix.lower() == ".fa3d":
         flame = formats.read_fa3d(source).flame.to_dict()
     elif args.flame in bundled():
         flame = bundled()[args.flame]
     else:
-        raise KeyError(f"no flame {args.flame!r}: give a .fa / .fa3d file or one of {', '.join(bundled())}")
+        raise KeyError(f"no flame {args.flame!r}: give a .fa / .fa3d / .flame file or one of {', '.join(bundled())}")
     spec = FlameSpec(flame, args.points, args.seed, MESH if args.solid else POINTS, args.resolution, args.threshold,
                      args.smoothing, True)
     result = drive(build(spec), args.quiet)

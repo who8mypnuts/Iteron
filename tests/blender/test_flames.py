@@ -121,3 +121,18 @@ def test_import_operator_reports_bad_files(tmp_path):
     bad.write_text("{}")
     with pytest.raises(RuntimeError):
         bpy.ops.iteron.import_fractalchemy(filepath=str(bad))
+
+
+FLAME_FILES = sorted((ROOT / "sample_source" / "Fractalchemy" / "samples").rglob("*.flame"))
+
+
+@pytest.mark.skipif(not FLAME_FILES, reason="the sample .flame files are not in the checkout")
+def test_apophysis_flame_files_import(small_flames):
+    from iteron.flames.flame_xml import read_flame
+    from iteron.ops.importer import import_flame_file
+    path = next(p for p in FLAME_FILES if len(read_flame(p)) > 2)
+    names = [f.name for f in read_flame(path)]
+    [second] = import_flame_file(bpy.context, path, all_flames=False, index=2)
+    assert second.name.startswith(names[1]) and len(second.data.vertices) > 1000
+    assert bpy.ops.iteron.import_fractalchemy(filepath=str(path), all_flames=True) == {"FINISHED"}
+    assert sum(o.iteron.kind == "FLAME" for o in bpy.data.objects) == 1 + len(names)

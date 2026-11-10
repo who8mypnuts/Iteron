@@ -56,6 +56,7 @@ class BuildResult:
     gain: float = 1.0                      # the distance estimator's calibration (|∇d| near the surface)
     tris: np.ndarray | None = None         # (T, 3) int32: triangles left by simplification
     channel_range: np.ndarray | None = None  # (2, 3): the raw channel values the colours' 0 and 1 stand for
+    blocks: tuple[int, int] = (1, 1)       # blocks sampled, of the candidates the coarse pass found
 
     @property
     def faces(self) -> int:
@@ -79,6 +80,9 @@ def build(spec: BuildSpec, sampler, entry=None) -> Generator[Step, None, BuildRe
     occupied = blk.occupied(plan, blk.layout(plan), near, reach)
     gain = yield from _calibrate(spec, sampler, entry, values, plan, near)
     level = spec.surface_offset * plan.spacing * gain
+    candidates = len(occupied)
+    if candidates > 1:
+        occupied = yield from _cull(sampler, entry, values, plan, occupied, level, gain)
     keys, points = [], []
     shape = "×".join(str(n) for n in plan.shape)
     for index, block in enumerate(occupied):
@@ -106,7 +110,18 @@ def build(spec: BuildSpec, sampler, entry=None) -> Generator[Step, None, BuildRe
                                                     reduced.tris)
     return BuildResult(vertices.astype(np.float32), quads, np.asarray(channels, dtype=np.float32), plan, sampler.name,
                        time.perf_counter() - started, spec, None if normals is None or not spec.field_normals
-                       else normals.astype(np.float32), gain, tris, channel_range)
+                       else normals.astype(np.float32), gain, tris, channel_range, (len(occupied), candidates))
+
+
+def _cull(sampler, entry, values, plan: GridPlan, occupied: list, level: float, gain: float):
+    """The occupied blocks whose probe lattice comes near the surface (see blocks.can_hold_surface)."""
+    probes = [blk.probe_points(plan, block) for block in occupied]
+    per_block = len(probes[0][0])
+    points = np.concatenate([p for p, _s in probes])
+    out = yield from _stage(_evaluate(sampler, entry, values, points), 0.07, 0.08, "Finding the surface")
+    distance = out[:, 0].reshape(len(occupied), per_block)
+    return [block for block, row, (_p, step) in zip(occupied, distance, probes)
+            if blk.can_hold_surface(row, step, level, plan.spacing, gain)]
 
 
 def _plan(spec: BuildSpec, sampler, entry, values):

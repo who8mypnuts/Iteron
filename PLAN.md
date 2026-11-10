@@ -8,9 +8,9 @@ any other mesh.
 This document is the plan: how it looks, how it works, what is built first, and what comes from the two sample
 sources (`sample_source/blender-addon-template` and `sample_source/Fractalchemy`).
 
-> **Status: Phases 0 – 5 are implemented, and from Phase 6 hybrids, animation with baking, volume output and the
-> command line.** §9 records the measured answers, what changed from the design below, and what could not be verified
-> here. `tests/run_tests.sh` runs every check (§10).
+> **Status: Phases 0 – 7 are implemented** (Phase 6: hybrids, animation with baking, volume output, the command line;
+> Phase 7: `.flame` import, meshing to 4096³, 37 formulas in seven families). §9 records the measured answers, what
+> changed from the design below, and what could not be verified here. `tests/run_tests.sh` runs every check (§10).
 
 **Decisions** (reasoning in the sections that follow; your answers to the first round of questions are recorded in §12):
 
@@ -735,10 +735,35 @@ is passed through unchanged was overwritten before being read in GLSL.
 * **Command line** (`cli/`): `python -m iteron.cli formulas | mesh | fragment | flame` builds without Blender and
   writes PLY / OBJ with colours and normals; `--gpu` and fragments use a moderngl sampler, which the tests share.
 
-### Phase 6+ — still open
-* **Sparse block meshing** beyond 1024³ (blocks already bound memory; the limit is the vertex count).
-* `.flame` import, per-transform flame materials, instancers.
-* Fragment textures, and colour from a fragment's `baseColor`.
+### Phase 7 — wrap-up ✅ done
+* **`.flame` import** (`flames/flame_xml.py`): Apophysis / flam3 XML → flames — affines, weight, colour and
+  `symmetry` (or `color_speed`), opacity, xaos, the 3D camera (`cam_*`, `angle` / `rotate`), palettes (both forms),
+  final transforms; variations told from their parameters as Fractalchemy's reader does. Every sample flame reads the
+  same as with Fractalchemy's own reader (tested). File ▸ Import ▸ Fractals takes `.flame` (all flames side by side, or
+  one by number), and so does the command line. 25 more variations (`var_flam3.py`: flam3's further built-ins and
+  Apophysis 7X's complex functions) — 97 in all, each checked against Fractalchemy's where it has one.
+* **Meshing beyond 1024³.** *Final* and the *Resolution Limit* preference go to 4096. Large builds add a culling pass:
+  every block the coarse pass marked is probed on a 16³ lattice and skipped when no probe comes within half a lattice
+  cell (plus the level, with a margin) of the surface — distance estimates don't overstate, so a block skipped holds
+  no surface. Surface nets skip solid and empty blocks at once. A ball in a 4096³ grid samples 12 of the 17 576 blocks
+  (54 candidates) and meshes closed in under a minute on the CPU; a test checks 2048³ (CPU) and 4096³ (GPU) builds.
+* **23 more formulas, 37 in all**, in seven families: *Bulbs* (Cosine Mandelbulb, Mandelbar Bulb, Burning Ship Bulb,
+  Bristorbrot, Polynomial Bulb), *Boxes* (Mandelbox 4D, Vary Scale Box, Tetra Box), *Sponges & Cubes* (Cantor Dust,
+  Vicsek Cube, Koch Cube, Twisted Menger, Gyroid Foam), *Kaleidoscopic IFS* (Icosahedral and Dodecahedral KIFS with
+  an exact icosahedral fold, Sierpinski Square Pyramid), *Hypercomplex* (Quaternion Mandelbrot, Cubic Quaternion
+  Julia, Tetrabrot, Bicomplex Julia) and the new *Inversions* (Apollonian Packing, Pseudo Kleinian, Sphere Inversion
+  IFS — endless limit sets, each cut out as a chunk so it is an object). Every one passes the generic suites (presets
+  have surfaces, GPU = CPU, closed manifold meshes, the panel and the preview shader) and its own checks (volumes,
+  symmetry, known set members).
+* **The picker, reorganised.** The quick-start shows a *family* picker (each family's icon its first thumbnail) and
+  only that family's gallery, with *Add Fractal*, *Add Flame* and *Open File…*; Shift+A ▸ Iteron Fractal has a
+  submenu per family. `tools/check_catalogue.py` keeps thumbnails, the README's table and THIRD_PARTY.md in step with
+  the registry (a test and `run_tests.sh` run it).
+
+### Still open
+* Per-transform flame materials, holon-style instancers; fragment textures and colour from `baseColor`.
+* Meshes beyond about 50 M faces are impractical in Blender; the culling makes 4096³ sampling affordable, not its
+  output small.
 
 ---
 

@@ -6,6 +6,9 @@
 #   tests/run_tests.sh
 #   ITERON_BLENDER_VERSIONS="5.0.1" tests/run_tests.sh          # one Blender version only
 #
+# Installed: numpy, pytest, pyflakes, moderngl (the GPU tests outside Blender) and pillow (Fractalchemy's own readers,
+# which some tests compare against) in a core environment; bpy, numpy, pytest and pillow per Blender version.
+#
 # Environment (all optional):
 #   ITERON_PYTHON            Python 3.11+ for the bpy-free checks          (default: python3)
 #   ITERON_PYTHON311         Python 3.11 for the bpy wheels                (default: python3.11, else uv's 3.11)
@@ -61,7 +64,7 @@ cd "$ROOT" || exit 2
 
 echo "Environments"
 CORE="$WORK/env-core"
-if logged env-core make_env "$CORE" "$PYTHON" numpy pytest pyflakes moderngl; then
+if logged env-core make_env "$CORE" "$PYTHON" numpy pytest pyflakes moderngl pillow; then
   record "environment: core" EXPECTED "$("$CORE/bin/python" -c 'import sys, numpy; print(f"Python {sys.version.split()[0]}, numpy {numpy.__version__}")')"
 else
   record "environment: core" MISMATCH "see $LOGS/env-core.log"
@@ -70,7 +73,7 @@ PY311="$(find_python311)"
 declare -A BPY=()
 for v in $VERSIONS; do
   if [ -z "$PY311" ]; then record "environment: bpy $v" MISMATCH "no Python 3.11 (set ITERON_PYTHON311)"; continue; fi
-  if logged "env-bpy-$v" make_env "$WORK/env-bpy-$v" "$PY311" "bpy==$v" "numpy==1.26.4" pytest; then
+  if logged "env-bpy-$v" make_env "$WORK/env-bpy-$v" "$PY311" "bpy==$v" "numpy==1.26.4" pytest pillow; then
     BPY[$v]="$WORK/env-bpy-$v/bin/python"
     record "environment: bpy $v" EXPECTED "$("${BPY[$v]}" -c 'import bpy; print("Blender", bpy.app.version_string)' 2>/dev/null | tail -n 1)"
   else
@@ -113,6 +116,11 @@ MISSING="$(find iteron tests tools -name '*.py' -o -name '*.frag' -o -name '*.sh
   head -n 3 "$f" | grep -q 'SPDX-License-Identifier: MIT' || echo "$f"; done)"
 if [ -z "$MISSING" ]; then record "SPDX headers" EXPECTED "every .py, .frag and .sh file"
 else record "SPDX headers" MISMATCH "$(echo "$MISSING" | tr '\n' ' ')"; fi
+if logged catalogue "$CORE/bin/python" tools/check_catalogue.py; then
+  record "formula catalogue" EXPECTED "$(tail -n 1 "$LOGS/catalogue.log" | cut -c 12-)"
+else
+  record "formula catalogue" MISMATCH "$(grep -c . "$LOGS/catalogue.log") problems, see $LOGS/catalogue.log"
+fi
 if logged bpy-free "$CORE/bin/python" -c '
 import sys
 import iteron.formulas, iteron.core.glsl, iteron.core.cpu_eval, iteron.jobs.pipeline, iteron.jobs.flame_pipeline
@@ -135,6 +143,20 @@ if logged cli "$CORE/bin/python" -m iteron.cli mesh mandelbulb -r 32 --refine 0 
   record "command line (mesh -> PLY)" EXPECTED "$FACES faces"
 else
   record "command line (mesh -> PLY)" MISMATCH "see $LOGS/cli.log"
+fi
+cat >"$WORK/two.flame" <<'EOF'
+<Flames name="check"><flame name="gasket" size="400 400" center="0 0" scale="100">
+  <xform weight="1" color="0" linear="1" coefs="0.5 0 0 0.5 0 0"/>
+  <xform weight="1" color="0.5" linear="1" coefs="0.5 0 0 0.5 0.5 0"/>
+  <xform weight="1" color="1" spherical="0.1" linear="0.9" coefs="0.5 0 0 0.5 0 0.5"/>
+  <palette count="2" format="RGB">ff8000 0080ff</palette></flame></Flames>
+EOF
+if logged cli-flame "$CORE/bin/python" -m iteron.cli flame "$WORK/two.flame" -n 20000 -o "$WORK/flame.ply" -q && \
+   POINTS="$("$CORE/bin/python" -c "from iteron.cli.writers import read_ply_header as r; print(r('$WORK/flame.ply')['vertex'])")" && \
+   [ "$POINTS" -gt 15000 ]; then
+  record "command line (.flame -> PLY)" EXPECTED "$POINTS points"
+else
+  record "command line (.flame -> PLY)" MISMATCH "see $LOGS/cli-flame.log"
 fi
 for v in $VERSIONS; do
   [ -n "${BPY[$v]:-}" ] || { record "Blender $v tests" MISMATCH "no bpy environment"; continue; }
@@ -174,7 +196,7 @@ for v in $VERSIONS; do
   RES="$(mktemp -d "$WORK/resources-XXXX")"
   BLENDER_USER_RESOURCES="$RES" logged "install-$v" "${BPY[$v]}" tools/check_install.py
   if grep -q "^OK:" "$LOGS/install-$v.log" && exit_ok "$v" "$LAST"; then
-    record "install check (Blender $v)" EXPECTED "installs; formula, flame, hybrid, fragment; re-enables$(exit_note "$LAST")"
+    record "install check (Blender $v)" EXPECTED "installs; formulas, flame, .flame, hybrid, fragment; re-enables$(exit_note "$LAST")"
   else
     record "install check (Blender $v)" MISMATCH "see $LOGS/install-$v.log"
   fi

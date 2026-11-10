@@ -1,31 +1,42 @@
 # SPDX-License-Identifier: MIT
-"""File ▸ Import ▸ Fractalchemy: `.fa` flames, `.fa3d` scenes (flame, camera, lights, world) and `.fafrag` /
-`.frag` fragments (see ops/fragments.py). Options sit in the file browser's side panel — no extra window."""
+"""File ▸ Import ▸ Fractals: Fractalchemy's `.fa` flames and `.fa3d` scenes (flame, camera, lights, world),
+Apophysis / flam3 `.flame` files, and `.fafrag` / `.frag` fragments (see ops/fragments.py). Options sit in the file
+browser's side panel — no extra window."""
 
 from pathlib import Path
 
 import bpy
-from bpy.props import BoolProperty, StringProperty
+from bpy.props import BoolProperty, IntProperty, StringProperty
 from bpy_extras.io_utils import ImportHelper
 from mathutils import Matrix, Vector
 
 from ..bridge import material
 from ..flames import formats
+from ..flames.flame_xml import read_flame
 from .add import add_flame
 
 FLAME_SPACING = 4.0          # several flames from one file are placed side by side
 
 
-def import_fa(context, path: Path, all_flames: bool) -> list:
-    flames = formats.read_fa(path)
-    flames = flames if all_flames else flames[:1]
+def import_flames(context, flames: list, all_flames: bool, index: int = 1) -> list:
+    """Flame objects for `flames` (all side by side, or the one at 1-based `index`)."""
+    if not all_flames:
+        flames = [flames[min(max(index, 1), len(flames)) - 1]]
     objects = []
     origin = Vector(context.scene.cursor.location)
-    for index, flame in enumerate(flames):
-        context.scene.cursor.location = origin + Vector((index * FLAME_SPACING, 0.0, 0.0))
+    for number, flame in enumerate(flames):
+        context.scene.cursor.location = origin + Vector((number * FLAME_SPACING, 0.0, 0.0))
         objects.append(add_flame(context, flame.to_dict()))
     context.scene.cursor.location = origin
     return objects
+
+
+def import_fa(context, path: Path, all_flames: bool, index: int = 1) -> list:
+    return import_flames(context, formats.read_fa(path), all_flames, index)
+
+
+def import_flame_file(context, path: Path, all_flames: bool, index: int = 1) -> list:
+    return import_flames(context, read_flame(path), all_flames, index)
 
 
 def import_fa3d(context, path: Path, camera: bool, lights: bool, world: bool):
@@ -95,14 +106,17 @@ def set_world(context, scene: formats.Scene) -> None:
 
 
 class ITERON_OT_import_fractalchemy(bpy.types.Operator, ImportHelper):
-    """Import Fractalchemy flames (.fa), 3D scenes (.fa3d) or fragments (.fafrag, .frag)"""
+    """Import flames (Fractalchemy .fa, Apophysis .flame), Fractalchemy 3D scenes (.fa3d) or fragments (.fafrag,
+    .frag)"""
     bl_idname = "iteron.import_fractalchemy"
-    bl_label = "Import Fractalchemy"
+    bl_label = "Import Fractals"
     bl_options = {"REGISTER", "UNDO"}
 
-    filter_glob: StringProperty(default="*.fa;*.fa3d;*.fafrag;*.frag", options={"HIDDEN"})
+    filter_glob: StringProperty(default="*.fa;*.fa3d;*.flame;*.fafrag;*.frag", options={"HIDDEN"})
     all_flames: BoolProperty(name="Every Flame in the File", default=True,
-                             description=".fa files: import all their flames side by side (else only the first)")
+                             description=".fa and .flame files: import all their flames side by side")
+    flame_index: IntProperty(name="Flame", default=1, min=1,
+                             description="Which flame of the file to import when not importing every flame")
     camera: BoolProperty(name="Camera", default=True,
                          description=".fa3d scenes and fragments: add the camera the file was saved with")
     lights: BoolProperty(name="Lights", default=True, description=".fa3d scenes: add the scene's lights")
@@ -113,14 +127,16 @@ class ITERON_OT_import_fractalchemy(bpy.types.Operator, ImportHelper):
         suffix = path.suffix.lower()
         try:
             if suffix == ".fa":
-                import_fa(context, path, self.all_flames)
+                import_fa(context, path, self.all_flames, self.flame_index)
+            elif suffix == ".flame":
+                import_flame_file(context, path, self.all_flames, self.flame_index)
             elif suffix == ".fa3d":
                 import_fa3d(context, path, self.camera, self.lights, self.world)
             elif suffix in (".fafrag", ".frag"):
                 from .fragments import import_fragment
                 import_fragment(context, path, self.camera)
             else:
-                self.report({"ERROR"}, f"Not a Fractalchemy file: {path.name}")
+                self.report({"ERROR"}, f"Not a file Iteron opens: {path.name}")
                 return {"CANCELLED"}
         except (formats.FormatError, ValueError) as error:
             self.report({"ERROR"}, str(error))
@@ -129,7 +145,7 @@ class ITERON_OT_import_fractalchemy(bpy.types.Operator, ImportHelper):
 
 
 def _menu(self, _context):
-    self.layout.operator(ITERON_OT_import_fractalchemy.bl_idname, text="Fractalchemy (.fa, .fa3d, .fafrag, .frag)")
+    self.layout.operator(ITERON_OT_import_fractalchemy.bl_idname, text="Fractals (.fa, .fa3d, .flame, .frag, .fafrag)")
 
 
 classes = (ITERON_OT_import_fractalchemy,)
@@ -143,4 +159,4 @@ def unregister_extra() -> None:
     bpy.types.TOPBAR_MT_file_import.remove(_menu)
 
 
-__all__ = ["import_fa", "import_fa3d"]
+__all__ = ["import_fa", "import_fa3d", "import_flame_file", "import_flames"]

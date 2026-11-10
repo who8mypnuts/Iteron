@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-COLUMNS, CELL, CAPTION, GAP = 5, 256, 30, 6
+COLUMNS, CELL, CAPTION, GAP = 7, 256, 30, 6
 NIGHT, INK = (11, 12, 24), (201, 207, 234)
 
 

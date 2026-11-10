@@ -42,7 +42,10 @@ def crossings(d: np.ndarray, iso: float, offset, core_stop, core_start, shape) -
     d = np.asarray(d, dtype=np.float32)
     offset, shape = np.asarray(offset, dtype=np.int64), np.asarray(shape, dtype=np.int64)
     outside = _global_boundary(d.shape, offset, shape)
-    inside = resolve_ambiguities((d < iso) & ~outside, outside)
+    raw = d < iso
+    if not raw.any() or (raw.all() and not outside.any()):   # all outside, or solid inside the grid: no surface
+        return np.zeros((0, 4), dtype=np.int64), np.zeros((0, 3), dtype=np.float32)
+    inside = resolve_ambiguities(raw & ~outside, outside)
     strides = np.array([shape[1] * shape[2], shape[2], 1], dtype=np.int64)
     local = np.array(d.shape)
     lo = np.maximum(np.asarray(core_start) - offset, 0)

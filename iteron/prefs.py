@@ -16,7 +16,7 @@ class IteronPreferences(bpy.types.AddonPreferences):
                                 ("CPU", "CPU", "numpy on the CPU: slower, float64, works everywhere")))
     debounce: IntProperty(name="Live Update Delay", default=120, min=0, max=2000, subtype="TIME_ABSOLUTE",
                           description="Milliseconds to wait after a change before rebuilding the preview")
-    max_resolution: IntProperty(name="Resolution Limit", default=1024, min=64, max=2048,
+    max_resolution: IntProperty(name="Resolution Limit", default=1024, min=64, max=4096,
                                 description="The highest Final resolution Build Final accepts (faces, time and memory "
                                 "grow about as its 2.5th power)")
 

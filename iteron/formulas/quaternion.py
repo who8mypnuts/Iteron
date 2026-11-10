@@ -13,7 +13,7 @@ def _square(q):
     return ops.vec4(q.x * q.x - q.y * q.y - q.z * q.z - q.w * q.w, 2.0 * q.x * q.y, 2.0 * q.x * q.z, 2.0 * q.x * q.w)
 
 
-@formula("Quaternion Julia", family="Quaternion", kind=DIRECT, bounds=1.6,
+@formula("Quaternion Julia", family="Hypercomplex", kind=DIRECT, bounds=1.6,
          description="A quaternion Julia set, sliced at a chosen fourth coordinate",
          params=(Int("iterations", 12, min=1, max=64, description="Iterations per point"),
                  Vec3("c", (-0.2, 0.6, 0.2), min=-1.5, max=1.5, label="C", description="The first three components of C"),
