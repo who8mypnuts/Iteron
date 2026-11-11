@@ -33,15 +33,24 @@ def bake(obj) -> None:
     if ramp is None or count == 0:
         return
     lut = ramp_lut(obj)
+    base = mesh.attributes.get(ATTRIBUTE_PREFIX + "base")
+    if obj.iteron.color_mode == "BASE" and base is not None:         # a fragment's own colours, as they are
+        colours = np.zeros(count * 4, dtype=np.float32)
+        base.data.foreach_get("color", colours)
+        _store(mesh, colours)
+        return
     name = material.ATTRIBUTE_FOR_MODE[obj.iteron.color_mode]
     source = mesh.attributes.get(ATTRIBUTE_PREFIX + name) if name else None
     values = np.zeros(count, dtype=np.float32)
     if source is not None:
         source.data.foreach_get("value", values)
-    colours = lut[np.clip((values * (LUT_SIZE - 1)).round().astype(np.int64), 0, LUT_SIZE - 1)]
+    _store(mesh, lut[np.clip((values * (LUT_SIZE - 1)).round().astype(np.int64), 0, LUT_SIZE - 1)].ravel())
+
+
+def _store(mesh, colours: np.ndarray) -> None:
     attribute = mesh.color_attributes.get(COLOR_ATTRIBUTE) or mesh.color_attributes.new(COLOR_ATTRIBUTE, "FLOAT_COLOR",
                                                                                          "POINT")
-    attribute.data.foreach_set("color", colours.ravel())
+    attribute.data.foreach_set("color", np.ascontiguousarray(colours, dtype=np.float32))
     mesh.color_attributes.active_color = attribute
     mesh.update()
 

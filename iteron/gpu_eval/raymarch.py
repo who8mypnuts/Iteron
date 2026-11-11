@@ -16,6 +16,7 @@ from . import shaders
 
 _CACHE: dict[tuple, tuple[Any, Any]] = {}
 _RAMPS: dict[tuple, Any] = {}
+_SAMPLERS: dict[tuple, tuple[str, ...]] = {}
 
 
 def shader(entry: Formula, values: dict[str, Any]):
@@ -29,6 +30,7 @@ def shader(entry: Formula, values: dict[str, Any]):
         info.uniform_buf(0, glsl.STRUCT, glsl.UNIFORM)
         info.uniform_buf(1, raymarch.STRUCT, raymarch.UNIFORM)
         info.sampler(0, "FLOAT_2D", raymarch.RAMP)
+        shaders.declare_samplers(info, source)
         info.fragment_out(0, "VEC4", "fragColor")
         if hasattr(info, "depth_write"):          # Blender 5: declare it (4.2's OpenGL writes depth regardless)
             info.depth_write("ANY")
@@ -36,6 +38,7 @@ def shader(entry: Formula, values: dict[str, Any]):
         info.fragment_source(source.kernel + raymarch.FRAGMENT)
         compiled = gpu.shader.create_from_info(info)
         _CACHE[key] = (compiled, batch_for_shader(compiled, "TRIS", {"pos": raymarch.CUBE}))
+        _SAMPLERS[key] = source.samplers
     return _CACHE[key]
 
 
@@ -50,9 +53,11 @@ def ramp_texture(lut: np.ndarray):
 
 
 def draw(entry: Formula, values: dict[str, Any], mvp, viewport, box, lut: np.ndarray, channel: str,
-         channel_range, detail: float = raymarch.DETAIL, steps: int = raymarch.MAX_STEPS) -> None:
-    """Draw the ray-marched fractal into the bound framebuffer (depth tested and written)."""
+         channel_range, detail: float = raymarch.DETAIL, steps: int = raymarch.MAX_STEPS, textures=None) -> None:
+    """Draw the ray-marched fractal into the bound framebuffer (depth tested and written). `textures`: a
+    fragment's, by sampler name."""
     compiled, batch = shader(entry, values)
+    samplers = _SAMPLERS[(entry.id, entry.version, entry.static_key(values), "raymarch")]
     view = raymarch.view_block(np.asarray(mvp), viewport, box[0], box[1], channel, channel_range[0], channel_range[1],
                                detail, steps)
     params = shaders.uniform_block(entry, values)
@@ -66,6 +71,7 @@ def draw(entry: Formula, values: dict[str, Any], mvp, viewport, box, lut: np.nda
     compiled.uniform_block(glsl.UNIFORM, params)
     compiled.uniform_block(raymarch.UNIFORM, view_buffer)
     compiled.uniform_sampler(raymarch.RAMP, ramp_texture(lut))
+    shaders.bind_samplers(compiled, samplers, textures or {})
     batch.draw(compiled)
     gpu.state.face_culling_set("NONE")
     gpu.state.depth_test_set(saved[0])
@@ -76,3 +82,4 @@ def draw(entry: Formula, values: dict[str, Any], mvp, viewport, box, lut: np.nda
 def clear_cache() -> None:
     _CACHE.clear()
     _RAMPS.clear()
+    _SAMPLERS.clear()

@@ -71,6 +71,10 @@ written from their published mathematics.
   checks every shared variation against Fractalchemy's own at test time. `julia3D` and `spherical3D` are written for
   Iteron from their published formulas. Nothing from Fractalchemy's compiled plugin library (GPL-derived) is used.
 * The bundled flames (`flames/library/*.json`) are the project's own.
+* Holons (`holon.py`) are ported from Fractalchemy's `solid/holon.py` (Stan Ragets, MIT): the Jacobian frames,
+  their polar decomposition, the chaos and tree placements. A test compares the tree with Fractalchemy's own.
+* Per-transform materials map Fractalchemy's Blinn–Phong materials as its Blender export does
+  (`solid/io/blender.py`).
 
 ## Fragments (`iteron/fragments/`)
 

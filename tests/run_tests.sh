@@ -6,8 +6,9 @@
 #   tests/run_tests.sh
 #   ITERON_BLENDER_VERSIONS="5.0.1" tests/run_tests.sh          # one Blender version only
 #
-# Installed: numpy, pytest, pyflakes, moderngl (the GPU tests outside Blender) and pillow (Fractalchemy's own readers,
-# which some tests compare against) in a core environment; bpy, numpy, pytest and pillow per Blender version.
+# Installed: numpy, pytest, pyflakes, moderngl (the GPU tests outside Blender), pillow and scipy (textures, and the
+# Fractalchemy code some tests compare against) in a core environment; bpy, numpy, pytest and pillow per Blender
+# version.
 #
 # Environment (all optional):
 #   ITERON_PYTHON            Python 3.11+ for the bpy-free checks          (default: python3)
@@ -64,7 +65,7 @@ cd "$ROOT" || exit 2
 
 echo "Environments"
 CORE="$WORK/env-core"
-if logged env-core make_env "$CORE" "$PYTHON" numpy pytest pyflakes moderngl pillow; then
+if logged env-core make_env "$CORE" "$PYTHON" numpy pytest pyflakes moderngl pillow scipy; then
   record "environment: core" EXPECTED "$("$CORE/bin/python" -c 'import sys, numpy; print(f"Python {sys.version.split()[0]}, numpy {numpy.__version__}")')"
 else
   record "environment: core" MISMATCH "see $LOGS/env-core.log"
@@ -158,6 +159,37 @@ if logged cli-flame "$CORE/bin/python" -m iteron.cli flame "$WORK/two.flame" -n 
 else
   record "command line (.flame -> PLY)" MISMATCH "see $LOGS/cli-flame.log"
 fi
+cat >"$WORK/tinted.frag" <<'EOF'
+#define providesColor
+#include "DE-Raytracer.frag"
+uniform sampler2D bumps; file[bumps.png]
+float DE(vec3 p) { return length(p) - 1.2 * texture2D(bumps, vec2(0.5, 0.5)).r; }
+vec3 baseColor(vec3 p, vec3 n) { return p.z > 0.0 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0); }
+EOF
+if ! "$CORE/bin/python" -c "import sys; from iteron.cli.gl_sampler import context; sys.exit(context() is None)" \
+     >/dev/null 2>&1; then
+  record "command line (textured fragment)" EXPECTED "skipped: no OpenGL 3.3 context for moderngl here"
+elif logged cli-fragment "$CORE/bin/python" -c "from PIL import Image; Image.new('RGB', (4, 4), (128, 128, 128)).save('$WORK/bumps.png')" && \
+   logged cli-fragment "$CORE/bin/python" -m iteron.cli fragment "$WORK/tinted.frag" -r 40 --refine 1 --color base \
+     -o "$WORK/tinted.obj" -q && \
+   DETAIL="$("$CORE/bin/python" - "$WORK/tinted.obj" <<'EOF'
+import sys, numpy as np
+rows = np.array([[float(v) for v in line.split()[1:7]] for line in open(sys.argv[1]) if line.startswith("v ")])
+radius, red, blue = np.linalg.norm(rows[:, :3], axis=1), rows[:, 3], rows[:, 5]
+assert abs(np.median(radius) - 0.6) < 0.05, np.median(radius)              # 1.2 × the texture's 0.5
+assert (red[rows[:, 2] > 0.1] == 1).all() and (blue[rows[:, 2] < -0.1] == 1).all()
+print(f"{len(rows)} vertices, radius {np.median(radius):.3f}, its own colours")
+EOF
+)"; then
+  record "command line (textured fragment)" EXPECTED "$DETAIL"
+else
+  record "command line (textured fragment)" MISMATCH "see $LOGS/cli-fragment.log"
+fi
+if logged fragments "$CORE/bin/python" tools/check_fragments.py --include-folder; then
+  record "fragment library" EXPECTED "$(tail -n 1 "$LOGS/fragments.log")"
+else
+  record "fragment library" MISMATCH "$(tail -n 1 "$LOGS/fragments.log") — see $LOGS/fragments.log"
+fi
 for v in $VERSIONS; do
   [ -n "${BPY[$v]:-}" ] || { record "Blender $v tests" MISMATCH "no bpy environment"; continue; }
   logged "blender-$v-tests" "${BPY[$v]}" -m pytest -q tests -p no:cacheprovider
@@ -196,7 +228,7 @@ for v in $VERSIONS; do
   RES="$(mktemp -d "$WORK/resources-XXXX")"
   BLENDER_USER_RESOURCES="$RES" logged "install-$v" "${BPY[$v]}" tools/check_install.py
   if grep -q "^OK:" "$LOGS/install-$v.log" && exit_ok "$v" "$LAST"; then
-    record "install check (Blender $v)" EXPECTED "installs; formulas, flame, .flame, hybrid, fragment; re-enables$(exit_note "$LAST")"
+    record "install check (Blender $v)" EXPECTED "installs; formulas, flame (materials, holons), .flame, hybrid, fragment; re-enables$(exit_note "$LAST")"
   else
     record "install check (Blender $v)" MISMATCH "see $LOGS/install-$v.log"
   fi

@@ -69,6 +69,22 @@ class Scene:
     mesh: dict = field(default_factory=dict)          # Fractalchemy's mesh settings (points, resolution, threshold …)
     solid: bool = True                                # the scene was shown as a lit solid (else points)
     materials: list[dict] = field(default_factory=list)  # per transform: diffuse, specular, shininess …
+    instancers: list[dict] = field(default_factory=list)  # holons: placement, size, the asset's name …
+    assets: list[dict] = field(default_factory=list)      # the meshes instancers use (primitives, files)
+
+    @property
+    def distinct_materials(self) -> bool:
+        """Whether the transforms' materials differ (or any has a fixed colour): worth a material each."""
+        looks = [tuple(sorted((k, str(v)) for k, v in m.items())) for m in self.materials]
+        return len(set(looks)) > 1 or any(m.get("color_mode") == "fixed" for m in self.materials)
+
+    def instancer(self) -> dict | None:
+        """The first visible instancer, with its asset's primitive kind (`primitive`; None for mesh files)."""
+        found = next((i for i in self.instancers if i.get("visible", True)), None)
+        if found is None:
+            return None
+        asset = next((a for a in self.assets if a.get("name") == found.get("asset")), {})
+        return dict(found, primitive=asset.get("primitive") if asset.get("kind", "primitive") == "primitive" else None)
 
     def surface(self) -> tuple[float, float]:
         """`(roughness, specular)` for a Principled BSDF from the first transform's Blinn–Phong material, as
@@ -92,7 +108,9 @@ def read_fa3d(path: Path) -> Scene:
     colour = tuple(c / 255.0 for c in env.get("color", (30, 32, 40)))
     return Scene(flame, lights, colour, float(env.get("ambient", 0.6)), bool(env.get("visible", True)),
                  dict(scene.get("mesh", {})), scene.get("solid", {}).get("display", "solid") != "points",
-                 [m for m in scene.get("materials", []) if isinstance(m, dict)])
+                 [m for m in scene.get("materials", []) if isinstance(m, dict)],
+                 [i for i in scene.get("instancers", []) if isinstance(i, dict)],
+                 [a for a in scene.get("assets", []) if isinstance(a, dict)])
 
 
 def light_direction(altitude: float, azimuth: float) -> np.ndarray:

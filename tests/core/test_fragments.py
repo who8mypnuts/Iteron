@@ -109,7 +109,7 @@ def test_compat_turns_uniforms_into_globals_and_reports_textures():
                                     [annotations.parse("uniform float A; slider[0,1,2]", "", "")])
     assert "\nfloat A;" in code and "float time = 0.0;" in code and code.count("float time = 0.0;") == 1
     assert "vec3 D = vec3(0.0);" in code and "void iteron_fragment_main()" in code
-    assert "iteron_frag_color = vec4(1.0)" in code and problems == ["textures (tex)"]
+    assert "iteron_frag_color = vec4(1.0)" in code and problems == ["textures without a file (tex)"]
 
 
 def test_a_fragment_becomes_a_formula_with_presets_and_the_cut():
@@ -133,8 +133,8 @@ def test_fragments_iteron_cannot_run_say_why():
         build('#include "2D.frag"\nvec3 color(vec2 p) { return vec3(0.0); }\n')
     with pytest.raises(FragmentError, match="DE"):
         build('#include "DE-Raytracer.frag"\nfloat Distance(vec3 p) { return 1.0; }\n')
-    with pytest.raises(FragmentError, match="textures"):
-        build("uniform sampler2D tex; file[t.png]\nfloat DE(vec3 p) { return length(p) - 1.0; }\n")
+    with pytest.raises(FragmentError, match="samplerCube"):
+        build("uniform samplerCube sky; file[sky.png]\nfloat DE(vec3 p) { return length(p) - 1.0; }\n")
 
 
 def test_the_fafrag_fixture_builds():

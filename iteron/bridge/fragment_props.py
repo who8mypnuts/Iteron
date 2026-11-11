@@ -43,6 +43,11 @@ class IteronParamItem(PropertyGroup):
     choice: EnumProperty(items=_choice_items, update=_changed)
 
 
+class IteronTextureItem(PropertyGroup):
+    """A texture the fragment samples: the sampler uniform (`name`) and its image, packed into the `.blend`."""
+    image: PointerProperty(type=bpy.types.Image, name="Image")
+
+
 class IteronFragmentSettings(PropertyGroup):
     name: StringProperty(name="Name", description="The fragment's name (its file's)")
     text: PointerProperty(type=bpy.types.Text, name="Source",
@@ -50,6 +55,7 @@ class IteronFragmentSettings(PropertyGroup):
                           "rebuild)")
     path: StringProperty(name="File", subtype="FILE_PATH", description="The file the fragment was opened from")
     params: CollectionProperty(type=IteronParamItem)
+    textures: CollectionProperty(type=IteronTextureItem)
     error: StringProperty(options={"HIDDEN"}, description="Why the fragment can't be built")
 
 
@@ -128,4 +134,16 @@ def write(settings, params, values: dict) -> None:
             put(items[p.name], p.coerce(values[p.name]))
 
 
-classes = (IteronParamItem, IteronFragmentSettings)
+def set_textures(settings, paths: dict) -> None:
+    """Load (or reuse) each texture's image from `{sampler name: path}`, raw values (Non-Color), packed."""
+    settings.textures.clear()
+    for name, path in paths.items():
+        image = bpy.data.images.load(str(path), check_existing=True)
+        image.colorspace_settings.name = "Non-Color"
+        if not image.packed_file:
+            image.pack()
+        item = settings.textures.add()
+        item.name, item.image = name, image
+
+
+classes = (IteronParamItem, IteronTextureItem, IteronFragmentSettings)

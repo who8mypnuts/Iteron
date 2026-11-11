@@ -125,7 +125,7 @@ def test_the_preview_shader_compiles_for_a_fragment(ball):
 
 def test_without_a_gpu_fragments_say_so(ball):
     with pytest.raises(FragmentError, match="GPU"):
-        FragmentKind.sampler(force_cpu=True)
+        FragmentKind.sampler(None, force_cpu=True)
 
 
 def test_the_fixture_and_the_source_survive_save_and_reload(ball, tmp_path):
@@ -151,3 +151,66 @@ def test_collection_fragments_mesh_in_blender(gpu_context, name):
     assert len(obj.data.polygons) > 500, obj.iteron.message
     assert fragment_props.read(obj.iteron.fragment, FragmentKind.entry(obj).params)
     assert obj.iteron.color_mode == ("TRAP" if FragmentKind.entry(obj).uses_trap else "RADIUS")
+
+
+TEXTURED = """#define providesColor
+#include "DE-Raytracer.frag"
+uniform sampler2D bumps; file[bumps.png]
+float DE(vec3 p) { return length(p) - 1.2 * texture2D(bumps, vec2(0.5, 0.5)).r; }
+vec3 baseColor(vec3 p, vec3 n) { return p.z > 0.0 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0); }
+"""
+
+
+@pytest.fixture
+def textured(gpu_context, tmp_path):
+    image = bpy.data.images.new("bumps", 4, 4)
+    image.pixels[:] = [0.5, 0.5, 0.5, 1.0] * 16
+    image.filepath_raw = str(tmp_path / "bumps.png")
+    image.file_format = "PNG"
+    image.save()
+    bpy.data.images.remove(image)
+    path = tmp_path / "Textured.frag"
+    path.write_text(TEXTURED)
+    obj = import_fragment(bpy.context, path, camera=False)
+    obj.iteron.preview_resolution = 40
+    SCHEDULER.run_now(obj)
+    return obj
+
+
+def test_a_textured_fragment_packs_and_samples_its_image(textured):
+    [item] = textured.iteron.fragment.textures
+    assert item.name == "bumps" and item.image.packed_file is not None
+    assert item.image.colorspace_settings.name == "Non-Color"
+    assert len(textured.data.vertices) > 100, textured.iteron.message
+    radius = np.linalg.norm(np.array([v.co for v in textured.data.vertices]), axis=1)
+    assert abs(np.median(radius) - 0.6) < 0.05                      # 1.2 × the texture's 0.5
+
+
+def test_a_fragment_with_its_own_colour_uses_it(textured):
+    assert textured.iteron.color_mode == "BASE"
+    mesh = textured.data
+    colours = np.zeros(len(mesh.vertices) * 4, dtype=np.float32)
+    mesh.color_attributes["Col"].data.foreach_get("color", colours)
+    colours = colours.reshape(-1, 4)
+    z = np.array([v.co.z for v in mesh.vertices])
+    assert np.allclose(colours[z > 0.1, :3], (1.0, 0.0, 0.0), atol=1e-3)
+    assert np.allclose(colours[z < -0.1, :3], (0.0, 1.0, 0.0), atol=1e-3)
+    from iteron.bridge import material
+    bsdf = next(n for n in material.find(textured).node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    assert bsdf.inputs["Base Color"].links[0].from_node.name == material.ATTRIBUTE_NODE
+    textured.iteron.color_mode = "TRAP"
+    assert bsdf.inputs["Base Color"].links[0].from_node.name == material.RAMP_NODE
+
+
+def test_the_preview_shader_binds_the_texture(textured):
+    from iteron.gpu_eval import raymarch
+    entry = FragmentKind.entry(textured)
+    raymarch.shader(entry, entry.values(FragmentKind.read(textured)))
+    assert set(FragmentKind.textures(textured)) == {"bumps"}
+
+
+def test_a_missing_texture_file_is_reported(gpu_context, tmp_path):
+    path = tmp_path / "Lonely.frag"
+    path.write_text(TEXTURED)
+    with pytest.raises(FragmentError, match="bumps.png"):
+        import_fragment(bpy.context, path, camera=False)

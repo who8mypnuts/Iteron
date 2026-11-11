@@ -35,7 +35,9 @@ OUTPUTS = (("MESH", "Mesh", "A surface mesh"),
 COLOR_MODES = (("TRAP", "Orbit Trap", "Colour by how close the orbit came to the origin"),
                ("ITERATIONS", "Iterations", "Colour by how many iterations the point took"),
                ("RADIUS", "Radius", "Colour by the orbit's final distance from the origin"),
-               ("SOLID", "Solid", "One colour: the start of the ramp"))
+               ("SOLID", "Solid", "One colour: the start of the ramp"),
+               ("BASE", "Fragment Colour", "The fragment's own baseColor (fragments that #define providesColor); "
+                "others show the start of the ramp"))
 
 
 def _changed(self, _context):

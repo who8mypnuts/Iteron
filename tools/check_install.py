@@ -44,11 +44,18 @@ def main() -> int:
 
 
 def check_phase_features() -> None:
-    """What later phases added, from the installed copy: a flame, a hybrid, a newer formula, an Apophysis `.flame`,
-    and a fragment opened through the importer (its includes come from the packaged shims; without a GPU context it
+    """What later phases added, from the installed copy: a flame (with a material per transform and holons), a
+    hybrid, a newer formula, an Apophysis `.flame`, and a fragment opened through the importer (its includes come from the packaged shims; without a GPU context it
     reports that it needs one)."""
     bpy.ops.iteron.add_flame(flame="sierpinski_pyramid")
-    assert len(bpy.context.active_object.data.vertices) > 10_000, "the flame built no points"
+    flame = bpy.context.active_object
+    assert len(flame.data.vertices) > 10_000, "the flame built no points"
+    flame.iteron.flame.per_transform = True
+    assert len(flame.data.materials) == 4, "no material per transform"
+    holons = flame.iteron.flame.instancer
+    holons.mode, holons.depth, holons.enabled = "TREE", 2, True
+    bpy.ops.iteron.rebuild()
+    assert holons.holder is not None and len(holons.holder.data.vertices) == 20, "no holon instances"
     bpy.ops.iteron.add_fractal(formula="hybrid")
     assert bpy.context.active_object.iteron.built_faces > 1000, bpy.context.active_object.iteron.message
     bpy.ops.iteron.add_fractal(formula="icosahedral_kifs")

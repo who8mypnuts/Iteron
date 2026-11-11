@@ -23,7 +23,7 @@ TYPEDEF = f"""struct {STRUCT} {{
     vec4 viewport;      /* x, y, width, height of the region, in framebuffer pixels */
     vec4 box_lo;        /* the box the fractal lives in (object space) */
     vec4 box_hi;
-    vec4 options;       /* detail (pixels), max steps, channel (0 trap 1 iterations 2 radius 3 solid), unused */
+    vec4 options;       /* detail (pixels), max steps, channel (0 trap 1 iterations 2 radius 3 solid 4 base), unused */
     vec4 range_lo;      /* per channel: the values the ramp's ends stand for */
     vec4 range_hi;
 }};"""
@@ -81,8 +81,11 @@ void main() {{
     float value = channel == 0 ? k.y : (channel == 1 ? k.z : k.w);
     float lo = channel == 0 ? {UNIFORM}.range_lo.x : (channel == 1 ? {UNIFORM}.range_lo.y : {UNIFORM}.range_lo.z);
     float hi = channel == 0 ? {UNIFORM}.range_hi.x : (channel == 1 ? {UNIFORM}.range_hi.y : {UNIFORM}.range_hi.z);
-    float at = channel == 3 ? 0.0 : clamp((value - lo) / max(hi - lo, 1e-9), 0.0, 1.0);
+    float at = channel >= 3 ? 0.0 : clamp((value - lo) / max(hi - lo, 1e-9), 0.0, 1.0);
     vec3 albedo = texture({RAMP}, vec2(at, 0.5)).rgb;
+#ifdef providesColor
+    if (channel == 4) {{ albedo = pow(clamp(baseColor(p, n), 0.0, 1.0), vec3(2.2)); }}   /* a fragment's own colour */
+#endif
     vec3 key = normalize(-dir + vec3(0.0, 0.0, 0.6));
     float light = 0.22 + 0.58 * max(dot(n, -dir), 0.0) + 0.32 * max(dot(n, key), 0.0);
     vec3 linear = albedo * light;
@@ -98,7 +101,7 @@ _FACES = (((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)), ((0, 0, 1), (0, 1, 1), (
 # the unit cube as triangles wound counter-clockwise seen from outside (the draw culls front faces: only the far
 # side is drawn, so the preview also works with the camera inside the box)
 CUBE = [corner for a, b, c, d in _FACES for corner in (a, c, b, a, d, c)]
-CHANNELS = {"TRAP": 0, "ITERATIONS": 1, "RADIUS": 2, "SOLID": 3}
+CHANNELS = {"TRAP": 0, "ITERATIONS": 1, "RADIUS": 2, "SOLID": 3, "BASE": 4}
 DETAIL, MAX_STEPS = 1.0, 256
 
 

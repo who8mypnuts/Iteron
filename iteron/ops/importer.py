@@ -3,6 +3,7 @@
 Apophysis / flam3 `.flame` files, and `.fafrag` / `.frag` fragments (see ops/fragments.py). Options sit in the file
 browser's side panel — no extra window."""
 
+import json
 from pathlib import Path
 
 import bpy
@@ -13,7 +14,7 @@ from mathutils import Matrix, Vector
 from ..bridge import material
 from ..flames import formats
 from ..flames.flame_xml import read_flame
-from .add import add_flame
+from .add import add_flame, build_first
 
 FLAME_SPACING = 4.0          # several flames from one file are placed side by side
 
@@ -47,6 +48,11 @@ def import_fa3d(context, path: Path, camera: bool, lights: bool, world: bool):
                     smoothing=float(mesh.get("smoothing", 1.0)))
     obj.iteron.final_resolution = int(mesh.get("resolution", 256))
     material.set_surface(material.ensure_flame(obj), *scene.surface())
+    f = obj.iteron.flame
+    f.materials = json.dumps(scene.materials)
+    f.per_transform = scene.distinct_materials
+    if apply_instancer(f.instancer, scene.instancer()):
+        build_first(obj)
     if camera:
         add_camera(context, obj, formats.camera_frame(scene.flame.camera))
     if lights:
@@ -55,6 +61,29 @@ def import_fa3d(context, path: Path, camera: bool, lights: bool, world: bool):
     if world:
         set_world(context, scene)
     return obj
+
+
+SHAPES = {"sphere": "SPHERE", "cube": "CUBE", "icosahedron": "ICOSAHEDRON", "tetrahedron": "TETRAHEDRON",
+          "torus": "TORUS", "cylinder": "CYLINDER"}
+
+
+def apply_instancer(settings, found: dict | None) -> bool:
+    """A `.fa3d` instancer as the flame's holons (its own IFS too); mesh-file and DLA assets become spheres."""
+    if found is None:
+        return False
+    settings.mode = "TREE" if found.get("mode") == "tree" else "CHAOS"
+    settings.frames = "TRANSLATION" if found.get("frame_mode") == "translation" else "JACOBIAN"
+    settings.leaves_only = found.get("tree_levels") == "leaves"
+    for key, name, kind in (("count", "count", int), ("depth", "depth", int), ("size", "size", float),
+                            ("size_falloff", "falloff", float), ("min_size", "min_size", float),
+                            ("max_instances", "cap", int), ("seed", "seed", int)):
+        if key in found:
+            setattr(settings, name, kind(found[key]))
+    settings.shape = SHAPES.get(found.get("primitive") or "", "SPHERE")
+    settings.palette = found.get("color_mode", "palette") == "palette"
+    settings.source = json.dumps(found["flame"]) if found.get("source") == "own" and found.get("flame") else ""
+    settings.enabled = True
+    return True
 
 
 def add_camera(context, obj, frame: formats.CameraFrame):

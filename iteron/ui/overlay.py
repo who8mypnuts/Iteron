@@ -37,7 +37,8 @@ def draw_object(obj, perspective_matrix, viewport) -> None:
     prefs = preferences()
     try:
         raymarch.draw(entry, values, mvp, viewport, box(obj), ramp_lut(obj), s.color_mode,
-                      (tuple(s.channel_lo), tuple(s.channel_hi)), prefs.preview_detail, prefs.preview_steps)
+                      (tuple(s.channel_lo), tuple(s.channel_hi)), prefs.preview_detail, prefs.preview_steps,
+                      kind.textures(obj))
     except Exception:                   # noqa: BLE001 - a shader that doesn't compile: say so once
         _FAILED.add(key)
         raise

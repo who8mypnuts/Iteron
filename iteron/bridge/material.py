@@ -13,7 +13,7 @@ from ..core.palette import SWEEP, linear
 from .mesh_write import ATTRIBUTE_PREFIX
 
 RAMP_NODE, ATTRIBUTE_NODE = "Iteron Ramp", "Iteron Attribute"
-ATTRIBUTE_FOR_MODE = {"TRAP": "trap", "ITERATIONS": "iterations", "RADIUS": "radius", "SOLID": ""}
+ATTRIBUTE_FOR_MODE = {"TRAP": "trap", "ITERATIONS": "iterations", "RADIUS": "radius", "SOLID": "", "BASE": "base"}
 
 
 def attribute_name(mode: str) -> str:
@@ -72,9 +72,14 @@ FLAME_TAG = "iteron_flame"          # marks the material a flame object made
 
 
 def ensure_flame(obj):
-    """A flame's material: its palette colours (the `Col` attribute) into a Principled BSDF."""
+    """A flame's material: its palette colours (the `Col` attribute) into a Principled BSDF (the base the
+    per-transform materials are copied from)."""
+    f = obj.iteron.flame
+    if f.base_material is not None:
+        return f.base_material
     for slot in obj.material_slots:
         if slot.material is not None and slot.material.get(FLAME_TAG):
+            f.base_material = slot.material
             return slot.material
     flame = bpy.data.materials.new(f"Iteron {obj.name}")
     flame[FLAME_TAG] = True
@@ -89,6 +94,7 @@ def ensure_flame(obj):
     colour.location = (bsdf.location.x - 300, bsdf.location.y)
     links.new(colour.outputs["Color"], bsdf.inputs["Base Color"])
     obj.data.materials.append(flame)
+    f.base_material = flame
     return flame
 
 
@@ -100,6 +106,16 @@ def set_surface(material, roughness: float, specular: float) -> None:
 
 
 def set_mode(obj, mode: str) -> None:
+    """Point the material's attribute node at the mode's channel; the fragment's own colour (`BASE`) bypasses the
+    ramp."""
     material = find(obj)
-    if material is not None:
-        material.node_tree.nodes[ATTRIBUTE_NODE].attribute_name = attribute_name(mode)
+    if material is None:
+        return
+    nodes, links = material.node_tree.nodes, material.node_tree.links
+    attribute = nodes[ATTRIBUTE_NODE]
+    attribute.attribute_name = attribute_name(mode)
+    bsdf = next((n for n in nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if bsdf is not None:
+        own = mode == "BASE" and ATTRIBUTE_PREFIX + "base" in obj.data.attributes
+        source = attribute.outputs["Color"] if own else nodes[RAMP_NODE].outputs["Color"]
+        links.new(source, bsdf.inputs["Base Color"])

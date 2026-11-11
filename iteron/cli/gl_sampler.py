@@ -40,23 +40,34 @@ def context():
     return None
 
 
+MAINS = {"grid": glsl.PROBE_MAIN, "points": glsl.POINTS_MAIN, "color": glsl.COLOR_MAIN}
+
+
 def fragment_source(source: glsl.KernelSource, mode: str = "grid") -> str:
     if mode == "grid":
-        inputs = "\n".join(f"uniform {TYPES[t]} {n};" for t, n in glsl.PROBE_CONSTANTS)
+        inputs = [f"uniform {TYPES[t]} {n};" for t, n in glsl.PROBE_CONSTANTS]
     else:
-        inputs = f"uniform sampler2D {glsl.POINTS_SAMPLER};"
-    main = glsl.PROBE_MAIN if mode == "grid" else glsl.POINTS_MAIN
+        inputs = [f"uniform sampler2D {glsl.POINTS_SAMPLER};"]
+        inputs += [f"uniform {TYPES[t]} {n};" for t, n in glsl.COLOR_CONSTANTS] if mode == "color" else []
+    inputs += [f"uniform sampler2D {name};" for name in source.samplers]
     return (f"#version 330\n{source.typedef}\nlayout(std140) uniform IteronBlock {{ {glsl.STRUCT} {glsl.UNIFORM}; }};\n"
-            f"{inputs}\nout vec4 fragColor;\n{source.kernel}\n{main}")
+            + "\n".join(inputs) + f"\nout vec4 fragColor;\n{source.kernel}\n{MAINS[mode]}")
 
 
 class GlSampler:
+    """`textures`: a fragment's 2D textures by sampler name, as `(height, width, 4)` float arrays."""
     name = "GPU"
 
-    def __init__(self, ctx):
+    def __init__(self, ctx, textures: dict[str, np.ndarray] | None = None):
         self.ctx = ctx
         self._programs: dict[tuple, Any] = {}
         self._quad = ctx.buffer(np.array([-1, -1, 1, -1, -1, 1, 1, 1], dtype="f4").tobytes())
+        self._textures = {}
+        for name, image in (textures or {}).items():
+            image = np.ascontiguousarray(image, dtype=np.float32)
+            texture = ctx.texture((image.shape[1], image.shape[0]), 4, image.tobytes(), dtype="f4")
+            texture.repeat_x = texture.repeat_y = True
+            self._textures[name] = texture
 
     def program(self, entry, values, mode: str):
         key = (entry.id, entry.version, entry.static_key(values), mode)
@@ -64,8 +75,16 @@ class GlSampler:
             source = glsl.kernel_source(entry, values)
             program = self.ctx.program(vertex_shader=VERTEX, fragment_shader=fragment_source(source, mode))
             program["IteronBlock"].binding = 0
-            self._programs[key] = (program, self.ctx.vertex_array(program, [(self._quad, "2f", "pos")]))
-        return self._programs[key]
+            for unit, name in enumerate(source.samplers, start=glsl.TEXTURE_SLOT):
+                if name not in self._textures:
+                    raise RuntimeError(f"no image for the texture {name!r}")
+                if name in program:
+                    program[name].value = unit
+            self._programs[key] = (program, self.ctx.vertex_array(program, [(self._quad, "2f", "pos")]), source)
+        program, vao, source = self._programs[key]
+        for unit, name in enumerate(source.samplers, start=glsl.TEXTURE_SLOT):
+            self._textures[name].use(unit)
+        return program, vao
 
     def _draw(self, vao, entry, values, width: int, height: int) -> np.ndarray:
         block = self.ctx.buffer(glsl.pack(entry, values).tobytes())
@@ -96,7 +115,18 @@ class GlSampler:
         return out
 
     def evaluate(self, entry, values: dict[str, Any], points: np.ndarray):
-        program, vao = self.program(entry, values, "points")
+        return (yield from self._points(entry, values, points, "points", {}))
+
+    def colour(self, entry, values: dict[str, Any], points: np.ndarray, eps: float):
+        """`(M, 3)` of the fragment's `baseColor` at `points` (normals from a gradient `eps` across)."""
+        out = yield from self._points(entry, values, points, "color", {"probe_eps": float(eps)})
+        return out[:, :3]
+
+    def _points(self, entry, values, points: np.ndarray, mode: str, constants: dict):
+        program, vao = self.program(entry, values, mode)
+        for name, value in constants.items():
+            if name in program:
+                program[name].value = value
         out = np.empty((len(points), 4), dtype=np.float32)
         rows = max(1, PIXEL_BUDGET // POINTS_WIDTH)
         for start in range(0, len(points), POINTS_WIDTH * rows):

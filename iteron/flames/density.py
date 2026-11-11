@@ -82,6 +82,26 @@ def density_mesh(orbit: Orbit, resolution: int, threshold: float, smoothing: flo
     return plan.to_world(grid_vertices), quads, colours, plan
 
 
+def dominant_xform(orbit: Orbit, plan: GridPlan, grid_vertices: np.ndarray, smoothing: float,
+                   max_cells: int = 128) -> np.ndarray:
+    """`(V,)` int16: which transform's points are densest around each vertex (a face's material). Each transform's
+    density is binned on a grid of at most `max_cells` per side, blurred like the solid's, and compared there."""
+    step = max(1, int(np.ceil(max(plan.shape) / max_cells)))
+    shape = tuple(int(np.ceil(n / step)) for n in plan.shape)
+    index = np.floor((orbit.points.astype(np.float64) - np.asarray(plan.origin)) / (plan.spacing * step)).astype(np.int64)
+    ok = np.all((index >= 0) & (index < np.array(shape)), axis=1)
+    flat, which = np.ravel_multi_index(tuple(index[ok].T), shape), orbit.xform[ok]
+    coords = np.asarray(grid_vertices, dtype=np.float64) / step
+    best = np.full(len(coords), -1.0)
+    chosen = np.zeros(len(coords), dtype=np.int16)
+    for transform in np.unique(which):
+        grid = np.bincount(flat[which == transform], minlength=int(np.prod(shape))).reshape(shape).astype(np.float32)
+        here = trilinear(blur(grid, smoothing / step + 0.5), coords)
+        better = here > best
+        best[better], chosen[better] = here[better], transform
+    return chosen
+
+
 def trimmed(orbit: Orbit, slack: float = 0.5) -> np.ndarray:
     """Which points to keep as a point cloud: within the trimmed box, widened by `slack` of its size."""
     lo, hi = bounds(orbit.points)
@@ -89,4 +109,4 @@ def trimmed(orbit: Orbit, slack: float = 0.5) -> np.ndarray:
     return np.all((orbit.points >= lo - slack * span) & (orbit.points <= hi + slack * span), axis=1)
 
 
-__all__ = ["density_mesh", "trimmed", "blur", "trilinear", "bounds", "GridPlan"]
+__all__ = ["density_mesh", "dominant_xform", "trimmed", "blur", "trilinear", "bounds", "GridPlan"]

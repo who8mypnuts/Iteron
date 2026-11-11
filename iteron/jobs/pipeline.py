@@ -57,6 +57,7 @@ class BuildResult:
     tris: np.ndarray | None = None         # (T, 3) int32: triangles left by simplification
     channel_range: np.ndarray | None = None  # (2, 3): the raw channel values the colours' 0 and 1 stand for
     blocks: tuple[int, int] = (1, 1)       # blocks sampled, of the candidates the coarse pass found
+    base_colours: np.ndarray | None = None # (V, 3) a fragment's own baseColor (fragments that provide one)
 
     @property
     def faces(self) -> int:
@@ -103,14 +104,20 @@ def build(spec: BuildSpec, sampler, entry=None) -> Generator[Step, None, BuildRe
         raw = (yield from _stage(_evaluate(sampler, entry, values, vertices), 0.72, 0.95, "Colouring"))[:, 1:]
     channels, channel_range = yield from _stage(in_thread(normalise, np.asarray(raw, dtype=np.float64)), 0.95, 0.96,
                                                 "Colouring")
+    if getattr(entry, "provides_color", False) and hasattr(sampler, "colour") and len(vertices):
+        base = yield from _stage(sampler.colour(entry, values, vertices, GRADIENT_EPS * plan.spacing), 0.96, 0.96,
+                                 "Colouring")
+        channels = np.hstack([channels, np.clip(base, 0.0, 1.0)])       # (the fragment's own colour rides along)
     if spec.simplify > 0 and normals is not None and len(quads):
         reduced = yield from _stage(in_thread(simplify, vertices, normals, channels, quads, plan.origin, plan.spacing,
                                               spec.simplify * plan.spacing), 0.96, 1.0, "Simplifying")
         vertices, normals, channels, quads, tris = (reduced.vertices, reduced.normals, reduced.channels, reduced.quads,
                                                     reduced.tris)
-    return BuildResult(vertices.astype(np.float32), quads, np.asarray(channels, dtype=np.float32), plan, sampler.name,
+    channels = np.asarray(channels, dtype=np.float32)
+    return BuildResult(vertices.astype(np.float32), quads, channels[:, :3], plan, sampler.name,
                        time.perf_counter() - started, spec, None if normals is None or not spec.field_normals
-                       else normals.astype(np.float32), gain, tris, channel_range, (len(occupied), candidates))
+                       else normals.astype(np.float32), gain, tris, channel_range, (len(occupied), candidates),
+                       channels[:, 3:6] if channels.shape[1] == 6 else None)
 
 
 def _cull(sampler, entry, values, plan: GridPlan, occupied: list, level: float, gain: float):

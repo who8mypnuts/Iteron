@@ -105,7 +105,8 @@ def test_every_bundled_flame_builds_as_points_and_as_a_solid(key):
     assert len(points.vertices) > 25_000 and points.faces == 0 and not points.unsupported
     assert points.xform is not None and points.colours.shape == (len(points.vertices), 3)
     solid = run_to_end(build(FlameSpec(flame, 200_000, output=MESH, resolution=48)))
-    assert solid.faces > 100 and solid.xform is None
+    assert solid.faces > 100 and solid.xform.shape == (len(solid.vertices),)
+    assert 0 <= solid.xform.min() and solid.xform.max() < len(flame["xforms"])
 
 
 def test_fa_samples_parse_and_iterate():

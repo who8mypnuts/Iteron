@@ -29,7 +29,11 @@ POINTS_WIDTH = 1024         # texture width for point batches
 
 
 class GpuSampler:
+    """`textures`: a fragment's textures by sampler name (`gpu.types.GPUTexture`)."""
     name = "GPU"
+
+    def __init__(self, textures: dict | None = None):
+        self.textures = textures or {}
 
     def sample(self, entry: Formula, values: dict[str, Any], plan: GridPlan) -> Generator[GpuTurn, None, Samples]:
         yield GpuTurn(0.0)
@@ -38,7 +42,7 @@ class GpuSampler:
         if nx > limit:
             raise RuntimeError(f"resolution {nx} exceeds the GPU's texture size ({limit})")
         k = int(max(1, min(nz, limit // ny, PIXEL_BUDGET // (nx * ny))))
-        shader, batch = shaders.probe(entry, values, "grid")
+        shader, batch, samplers = shaders.probe(entry, values, "grid")
         block = shaders.uniform_block(entry, values)
         out = Samples.empty(plan.shape)
         offscreen = gpu.types.GPUOffScreen(nx, ny * k, format="RGBA32F")
@@ -47,6 +51,7 @@ class GpuSampler:
                 count = min(k, nz - first)
 
                 def uniforms(first=first):
+                    shaders.bind_samplers(shader, samplers, self.textures)
                     shader.uniform_float("probe_origin", plan.origin)
                     shader.uniform_float("probe_spacing", plan.spacing)
                     shader.uniform_int("probe_res_y", ny)
@@ -62,8 +67,16 @@ class GpuSampler:
 
     def evaluate(self, entry: Formula, values: dict[str, Any], points: np.ndarray) -> Generator[GpuTurn, None, np.ndarray]:
         """`(M, 4)` kernel output at `(M, 3)` points."""
+        return (yield from self._points(entry, values, points, "points", lambda _shader: None))
+
+    def colour(self, entry: Formula, values: dict[str, Any], points: np.ndarray, eps: float):
+        """`(M, 3)` of a fragment's `baseColor` at `points` (normals from a gradient `eps` across)."""
+        out = yield from self._points(entry, values, points, "color", lambda shader: _set(shader, "probe_eps", eps))
+        return out[:, :3]
+
+    def _points(self, entry, values, points: np.ndarray, mode: str, constants: Callable):
         yield GpuTurn(0.0)
-        shader, batch = shaders.probe(entry, values, "points")
+        shader, batch, samplers = shaders.probe(entry, values, mode)
         block = shaders.uniform_block(entry, values)
         out = np.empty((len(points), 4), dtype=np.float32)
         rows = max(1, PIXEL_BUDGET // POINTS_WIDTH)
@@ -76,14 +89,27 @@ class GpuSampler:
                 texels[:len(chunk), :3] = chunk
                 texture = gpu.types.GPUTexture((POINTS_WIDTH, height), format="RGBA32F",
                                                data=shaders.float_buffer(texels))
-                pixels = _draw(offscreen, shader, batch, block,
-                               lambda: shader.uniform_sampler(glsl.POINTS_SAMPLER, texture), POINTS_WIDTH, height)
+
+                def uniforms(texture=texture):
+                    shader.uniform_sampler(glsl.POINTS_SAMPLER, texture)
+                    shaders.bind_samplers(shader, samplers, self.textures)
+                    constants(shader)
+
+                pixels = _draw(offscreen, shader, batch, block, uniforms, POINTS_WIDTH, height)
                 out[start:start + len(chunk)] = pixels.reshape(-1, 4)[:len(chunk)]
                 if start + len(chunk) < len(points):
                     yield GpuTurn((start + len(chunk)) / len(points))
         finally:
             offscreen.free()
         return sanitize(out)
+
+
+def _set(shader, name: str, value: float) -> None:
+    """A float uniform the compiler may have optimised away (a `baseColor` that ignores the normal)."""
+    try:
+        shader.uniform_float(name, float(value))
+    except ValueError:
+        pass
 
 
 def _draw(offscreen, shader, batch, block, uniforms: Callable[[], None], width: int, height: int) -> np.ndarray:

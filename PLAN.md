@@ -8,9 +8,10 @@ any other mesh.
 This document is the plan: how it looks, how it works, what is built first, and what comes from the two sample
 sources (`sample_source/blender-addon-template` and `sample_source/Fractalchemy`).
 
-> **Status: Phases 0 – 7 are implemented** (Phase 6: hybrids, animation with baking, volume output, the command line;
-> Phase 7: `.flame` import, meshing to 4096³, 37 formulas in seven families). §9 records the measured answers, what
-> changed from the design below, and what could not be verified here. `tests/run_tests.sh` runs every check (§10).
+> **Status: every phase is implemented** (Phase 6: hybrids, animation with baking, volume output, the command line;
+> Phase 7: `.flame` import, meshing to 4096³, 37 formulas in seven families; Phase 8: per-transform flame materials,
+> holon instancers, fragment textures and `baseColor`). §9 records the measured answers, what changed from the
+> design below, and what could not be verified here. `tests/run_tests.sh` runs every check (§10).
 
 **Decisions** (reasoning in the sections that follow; your answers to the first round of questions are recorded in §12):
 
@@ -361,6 +362,10 @@ the scheduler, presets, panel and preview use only this), `display.py`, `flame_p
 `importer.py`, `fragments.py`, `bake.py` and `region.py`; `ui/` has `overlay.py`, `flame_panel.py` and
 `fragment_panel.py`; `tools/` has `lint.py` (pyflakes without the Blender-property false alarms) and
 `render_showcase.py` (the README's flames / fragments / hybrids image); `tests/run_tests.sh` runs everything.
+Phases 7 – 8 added `flames/flame_xml.py`, `flames/var_flam3.py`, `flames/holon.py`, `bridge/flame_materials.py`,
+`bridge/holons.py`, `bridge/instancer_props.py`, `gpu_eval/textures.py`, `ui/quick_start.py`,
+`tools/check_catalogue.py` and `tools/check_fragments.py`, and the formula files `bulb_variants.py`,
+`box_variants.py`, `cubes.py`, `polyhedra.py`, `hypercomplex.py` and `inversions.py`.
 
 ---
 
@@ -760,10 +765,38 @@ is passed through unchanged was overwritten before being read in GLSL.
   submenu per family. `tools/check_catalogue.py` keeps thumbnails, the README's table and THIRD_PARTY.md in step with
   the registry (a test and `run_tests.sh` run it).
 
-### Still open
-* Per-transform flame materials, holon-style instancers; fragment textures and colour from `baseColor`.
-* Meshes beyond about 50 M faces are impractical in Blender; the culling makes 4096³ sampling affordable, not its
-  output small.
+### Phase 8 — the last open items ✅ done
+* **Per-transform flame materials** (`bridge/flame_materials.py`): *Material per Transform* gives every transform a
+  material copied from the flame's, with a `.fa3d` scene's Blinn–Phong look mapped as Fractalchemy's Blender export
+  does (roughness from shininess, specular, a fixed colour replacing the palette). A solid's faces take the transform
+  densest around them (each transform's density binned and blurred like the solid's — `density.dominant_xform`); a
+  point cloud, which can't carry a material index, is split by transform in a per-object Geometry Nodes group, each
+  part an instance with its own material. Toggling needs no rebuild. `.fa3d` import turns it on when the transforms'
+  materials differ.
+* **Holon instancers** (`flames/holon.py`, `bridge/holons.py`, `bridge/instancer_props.py`): ported from
+  Fractalchemy — Jacobian frames by central differences, polar decomposition, chaos and tree placements, size rules.
+  The instances live on a child object (one vertex per instance with rotation, scale and palette colour) with an
+  *Instance on Points* modifier: built-in shapes in a hidden *Iteron Assets* collection, or any object; palette
+  colours reach the shader as an *Instancer* attribute. Shape and colouring restyle without a rebuild. `.fa3d`
+  instancers (their own IFS too) come across. The tree matches Fractalchemy's on deterministic flames (tested).
+* **Fragment textures**: `uniform sampler2D t; file[…]` is found beside the fragment or in the include folders, packed
+  into the `.blend` as a Non-Color image, uploaded as a float texture and bound in the probes and the preview
+  (`KernelSource.samplers`, from sampler slot 1); `texture2D` maps to `texture`. The command line loads them with
+  Pillow. Cube maps and buffer feedback stay unsupported and are named.
+* **Colour from `baseColor`**: a fragment that `#define providesColor` is coloured by its own `baseColor(p, n)` at
+  every vertex (a "color" probe: the normal from the estimator's tetrahedral gradient), carried through
+  simplification with the other channels, stored as `iteron_base` and shown by *Color ▸ Fragment Colour* (the
+  material bypasses the ramp) — in the live preview too. The command line writes it (`--color auto / base`).
+* The fragment library check (`tools/check_fragments.py`): every example of Fractalchemy's library opened as the
+  add-on does and sampled through moderngl — 149 build with its include folder (one textured), the rest are 2D,
+  use cube maps or buffer feedback, or depend on the ray tracer's view; all 13 of the Collection's 3D fragments build
+  with Iteron's shims alone.
+
+### Known limits
+* Meshes beyond about 50 M faces are impractical in Blender: the culling makes 4096³ *sampling* affordable, not its
+  output small (use Frame View and Simplify).
+* Fragments run on the GPU only; cube maps, buffer shaders and fragments that read the ray tracer's view state
+  (`dir`, `from`) aren't supported.
 
 ---
 

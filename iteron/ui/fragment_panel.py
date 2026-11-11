@@ -39,5 +39,7 @@ def _draw_source(layout, obj) -> None:
     column = body.column()
     column.prop(f, "text", text="Text")
     column.prop(f, "path", text="File")
+    for item in f.textures:
+        column.prop(item, "image", text=f"Texture {item.name}")
     column.operator("iteron.reload_fragment", icon="FILE_REFRESH")
     column.label(text="Edit the text in the Text Editor, then rebuild", icon="INFO")

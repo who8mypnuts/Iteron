@@ -54,19 +54,25 @@ class FormulaKind:
                          s.final_resolution if final else s.preview_resolution, s.surface_offset, final,
                          s.refine_steps if final else min(s.refine_steps, PREVIEW_REFINE), s.shading == "FIELD",
                          s.simplify if final else 0.0)
-        sampler = cls.sampler(force_cpu)
+        sampler = cls.sampler(obj, force_cpu)
         return build(spec, sampler, entry), spec, sampler.name
 
     @staticmethod
-    def sampler(force_cpu: bool):
+    def sampler(_obj, force_cpu: bool):
         from ..jobs.cpu_sampler import CpuSampler
         from ..jobs.scheduler import make_sampler
         return CpuSampler() if force_cpu else make_sampler()
 
     @staticmethod
+    def textures(_obj) -> dict:
+        """The GPU textures the object's kernel samples (a fragment's `file[…]` images)."""
+        return {}
+
+    @staticmethod
     def finish(obj, result) -> None:
-        from . import colors, mesh_write
+        from . import colors, material, mesh_write
         mesh_write.write(obj, result)
+        material.set_mode(obj, obj.iteron.color_mode)
         colors.bake(obj)
         if result.channel_range is not None:
             obj.iteron.channel_lo = tuple(result.channel_range[0])
@@ -103,14 +109,25 @@ class FragmentKind(FormulaKind):
         except ValueError as error:              # the source doesn't build: stale until it does
             return _digest(["broken", str(error)])
 
-    @staticmethod
-    def sampler(force_cpu: bool):
+    @classmethod
+    def sampler(cls, obj, force_cpu: bool):
         from ..fragments.formula import FragmentError
         from ..jobs.scheduler import make_sampler
         sampler = None if force_cpu else make_sampler()
         if sampler is None or sampler.name != "GPU":
             raise FragmentError("fragments are GLSL and build on the GPU only (no GPU is available here)")
+        sampler.textures = cls.textures(obj)
         return sampler
+
+    @staticmethod
+    def textures(obj) -> dict:
+        from ..fragments.formula import FragmentError
+        from ..gpu_eval.textures import gpu_textures
+        images = {item.name: item.image for item in obj.iteron.fragment.textures}
+        missing = [name for name, image in images.items() if image is None]
+        if missing:
+            raise FragmentError(f"the image for the texture {missing[0]!r} was removed (Reload from Disk finds it)")
+        return gpu_textures(images)
 
     @classmethod
     def start(cls, obj, final: bool, force_cpu: bool):
@@ -125,7 +142,8 @@ class FlameKind:
     @staticmethod
     def shape_hash(obj) -> str:
         f = obj.iteron.flame
-        return _digest([f.source, f.seed, f.output, f.threshold, f.smoothing])
+        holons = f.instancer.spec() if f.instancer.enabled else None
+        return _digest([f.source, f.seed, f.output, f.threshold, f.smoothing, holons])
 
     @staticmethod
     def start(obj, final: bool, _force_cpu: bool):
@@ -133,13 +151,15 @@ class FlameKind:
         from .flame_props import PREVIEW_POINTS
         s, f = obj.iteron, obj.iteron.flame
         spec = FlameSpec(f.flame_dict(), f.points if final else min(f.points, PREVIEW_POINTS), f.seed, f.output,
-                         s.final_resolution if final else s.preview_resolution, f.threshold, f.smoothing, final)
+                         s.final_resolution if final else s.preview_resolution, f.threshold, f.smoothing, final,
+                         f.instancer.spec() if f.instancer.enabled else None)
         return build(spec), spec, "CPU"
 
     @staticmethod
     def finish(obj, result) -> None:
-        from . import flame_write
+        from . import flame_write, holons
         flame_write.write(obj, result)
+        holons.write(obj, result)
         obj.iteron.flame.unsupported = ", ".join(result.unsupported)
 
 

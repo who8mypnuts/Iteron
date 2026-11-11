@@ -40,12 +40,35 @@ void main() {
 """
 POINTS_SAMPLER = "probe_points"
 
+# A fragment's own colour (`#define providesColor`): `baseColor(p, n)` at arbitrary points, the normal from the
+# estimator's tetrahedral gradient `probe_eps` across.
+COLOR_MAIN = """
+void main() {
+    vec3 p = texelFetch(probe_points, ivec2(gl_FragCoord.xy), 0).xyz;
+    vec3 n = vec3(0.0, 0.0, 1.0);
+#ifdef providesColor
+    float e = probe_eps;
+    n = normalize(vec3(1.0, -1.0, -1.0) * iteron_kernel(p + vec3(e, -e, -e)).x
+                + vec3(-1.0, -1.0, 1.0) * iteron_kernel(p + vec3(-e, -e, e)).x
+                + vec3(-1.0, 1.0, -1.0) * iteron_kernel(p + vec3(-e, e, -e)).x
+                + vec3(1.0, 1.0, 1.0) * iteron_kernel(p + vec3(e, e, e)).x + 1e-20);
+    iteron_kernel(p);
+    fragColor = vec4(baseColor(p, n), 1.0);
+#else
+    fragColor = vec4(iteron_kernel(p).yzw, 1.0);
+#endif
+}
+"""
+COLOR_CONSTANTS = (("FLOAT", "probe_eps"),)
+TEXTURE_SLOT = 1          # a fragment's textures take sampler slots from here (0: the points, or the preview's ramp)
+
 
 @dataclass(frozen=True)
 class KernelSource:
     typedef: str      # the struct declaration
     kernel: str       # `vec4 iteron_kernel(vec3 pos)`
     slots: int        # vec4s in the uniform block
+    samplers: tuple[str, ...] = ()    # 2D textures the kernel reads (a fragment's `file[…]` uniforms)
 
 
 def kernel_source(entry: Formula, values: dict[str, Any]) -> KernelSource:
@@ -73,4 +96,4 @@ def pack(entry: Formula, values: dict[str, Any]) -> np.ndarray:
 
 
 __all__ = ["KernelSource", "kernel_source", "pack", "PROBE_MAIN", "PROBE_CONSTANTS", "POINTS_MAIN", "POINTS_SAMPLER",
-           "STRUCT", "UNIFORM"]
+           "COLOR_MAIN", "COLOR_CONSTANTS", "TEXTURE_SLOT", "STRUCT", "UNIFORM"]

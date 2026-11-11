@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import importlib
 
-MODULES = ("prefs", "ui.icons", "bridge.animation", "bridge.flame_props", "bridge.fragment_props", "bridge.props",
-           "bridge.state", "bridge.colors", "bridge.display", "ops.add", "ops.build", "ops.presets", "ops.apply",
+MODULES = ("prefs", "ui.icons", "bridge.animation", "bridge.instancer_props", "bridge.flame_props",
+           "bridge.fragment_props", "bridge.props", "bridge.state", "bridge.colors", "bridge.display", "ops.add", "ops.build", "ops.presets", "ops.apply",
            "ops.region", "ops.importer", "ops.fragments", "ops.bake", "ui.quick_start", "ui.panel", "ui.menus",
            "ui.overlay", "jobs.scheduler")
 

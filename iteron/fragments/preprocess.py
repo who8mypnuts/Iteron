@@ -9,7 +9,8 @@ Two passes, as in FragM (ported from Fractalchemy's `fragments/preprocessor.py`,
    stored in a `.blend` with the user's own includes inlined but the shims still by name.
 2. `parse` walks the merged lines: `#vertex … #endvertex` blocks and the host directives (`#camera`, `#group`,
    `#info`, `#buffer`, `#donotrun` …) become comments, `#replace "a" "b"` applies to later lines, and annotated
-   uniforms become parameters (their line a bare `uniform` declaration).
+   uniforms become parameters (their line a bare `uniform` declaration); `uniform sampler2D t; file[name]` becomes a
+   texture the host binds (`Parsed.textures`).
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from ..core.params import Param
 SHIMS = Path(__file__).resolve().parent / "shims"
 RE_INCLUDE = re.compile(r'^#include(?:.*)\s"([^"]+)"\s*$')
 RE_REPLACE = re.compile(r'^#replace\s+"([^"]+)"\s+"([^"]+)"\s*$')
+RE_TEXTURE = re.compile(r"^\s*uniform\s+sampler2D\s+(\w+)\s*;\s*file\[\s*([^\],]+?)\s*(?:,[^\]]*)?\]")
 RE_HOST = re.compile(r"^(?:raytracer|pathtracer|[\w-]*-raytracer[\w.-]*|[\w-]*raytracer[\w.-]*|de-kn\w*|3d|3dkn[\w.-]*"
                      r"|brute3d|sky-pathtracer|ibl-pathtracer)\.frag$", re.IGNORECASE)
 RE_2D = re.compile(r"^(?:2d[\w.-]*|progressive2d[\w.-]*)\.frag$", re.IGNORECASE)
@@ -45,6 +47,7 @@ class Parsed:
     params: list[Param] = field(default_factory=list)
     info: list[str] = field(default_factory=list)
     problems: list[str] = field(default_factory=list)      # unsupported features, by name
+    textures: dict[str, str] = field(default_factory=dict)  # sampler uniform → the image file it names
 
 
 def shim(name: str) -> Path | None:
@@ -127,6 +130,10 @@ def parse(text: str) -> Parsed:
             _directive(parsed, stripped, lowered)
             group = _group(stripped) if lowered.startswith("#group") else group
             lines.append("// " + stripped)
+            continue
+        if match := RE_TEXTURE.match(line):                   # the host declares and binds the texture
+            parsed.textures[match.group(1)] = match.group(2)
+            lines.append(f"// (texture {match.group(1)}: {match.group(2)})")
             continue
         param = annotations.parse(line, group, comment) if "uniform" in line else None
         if param is not None:

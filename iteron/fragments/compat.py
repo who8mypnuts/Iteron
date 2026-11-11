@@ -5,7 +5,8 @@ Fragmentarium code is GLSL 1.20 written for a full-screen renderer; Iteron only 
 
 * uniforms become plain globals — the annotated ones are loaded from Iteron's uniform block at the start of every
   evaluation, the others (the host's `time`, `pixelSize` …) keep zero values; a uniform declared twice is kept once;
-* textures can't be supplied, so a sampler uniform is reported by name;
+* 2D textures named with `file[…]` are bound by the host (the preprocessor took them out); `texture2D` becomes
+  `texture`; any other sampler (a cube map, a buffer's feedback) can't be supplied and is reported by name;
 * `double` / `dvec` / `dmat` become their float forms (the GPU path is float32), `1.0LF` literals lose the suffix;
 * a `main`, `gl_FragColor`, `fragColor` and `varying` declarations are renamed out of the way (a fragment's own
   `main` is never called);
@@ -29,7 +30,8 @@ RENAMES = ((re.compile(r"\bgl_FragData\s*\[\s*\d+\s*\]"), "iteron_frag_color"),
            (re.compile(r"\bdouble\b"), "float"), (re.compile(r"\bdvec([234])\b"), r"vec\1"),
            (re.compile(r"\bdmat([234](?:x[234])?)\b"), r"mat\1"),
            (re.compile(r"(\d\.?\d*(?:[eE][-+]?\d+)?)(?:lf|LF)\b"), r"\1"),
-           (re.compile(r"#\s*include\b"), "(include)"))      # left in comments: no host include resolver may see it
+           (re.compile(r"#\s*include\b"), "(include)"),
+           (re.compile(r"\btexture2DLod\s*\("), "textureLod("), (re.compile(r"\btexture2D\s*\("), "texture("))      # left in comments: no host include resolver may see it
 PRELUDE = "vec4 iteron_frag_color;\n"
 PI_DEFINE = "#define PI 3.14159265358979323846\n"
 RE_USES_PI, RE_DEFINES_PI = re.compile(r"\bPI\b"), re.compile(r"^\s*#\s*define\s+PI\b", re.MULTILINE)
@@ -67,7 +69,7 @@ def convert(code: str, params: list[Param]) -> tuple[str, list[str]]:
         elif match := RE_UNIFORM.match(line):
             indent, glsl_type, name, array, rest = match.groups()
             if "sampler" in glsl_type or "image" in glsl_type:
-                problems.append(f"textures ({name})")
+                problems.append(f"textures without a file ({name})" if glsl_type == "sampler2D" else f"{glsl_type} ({name})")
                 line = "// " + line.strip()
             elif name in declared:
                 line = "// " + line.strip() + "  (declared before)"

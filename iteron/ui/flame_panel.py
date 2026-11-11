@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
-"""The sidebar for a flame object: output, points, the density solid's settings, the transforms (read-only)."""
+"""The sidebar for a flame object: output, points, the density solid's settings, materials, the transforms
+(read-only) and the holon instances."""
 
 from __future__ import annotations
 
@@ -24,8 +25,10 @@ def draw_flame(layout, obj, draw_status, split) -> None:
         column.prop(f, "smoothing")
         column.prop(s, "preview_resolution")
         column.prop(s, "final_resolution")
+    column.prop(f, "per_transform")
     layout.operator("iteron.build_final", icon="MESH_ICOSPHERE")
     draw_bake(layout, obj)
+    _draw_instances(layout, f.instancer, split)
     header, body = layout.panel("iteron_flame_xforms", default_closed=True)
     header.label(text=f"Transforms ({len(flame.get('xforms', []))})")
     if body is not None:
@@ -36,3 +39,28 @@ def draw_flame(layout, obj, draw_status, split) -> None:
             variations = ", ".join(f"{n} {w:g}" for n, w in flame["final"].get("variations", {}).items())
             body.label(text=f"final  ·  {variations}")
     layout.operator("iteron.apply_mesh", icon="CHECKMARK")
+
+
+def _draw_instances(layout, settings, split) -> None:
+    """The holons: a header checkbox, then placement, size and what is instanced."""
+    header, body = layout.panel("iteron_flame_instances", default_closed=True)
+    header.prop(settings, "enabled", text="Instances")
+    if body is None:
+        return
+    column = split(body.column())
+    column.active = settings.enabled
+    column.prop(settings, "mode")
+    column.prop(settings, "count" if settings.mode == "CHAOS" else "leaves_only")
+    column.prop(settings, "depth")
+    column.prop(settings, "frames")
+    column.separator()
+    column.prop(settings, "size")
+    column.prop(settings, "falloff")
+    column.prop(settings, "min_size")
+    column.prop(settings, "cap")
+    column.prop(settings, "seed")
+    column.separator()
+    column.prop(settings, "shape")
+    if settings.shape == "OBJECT":
+        column.prop(settings, "object")
+    column.prop(settings, "palette")

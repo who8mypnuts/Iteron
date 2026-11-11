@@ -59,7 +59,7 @@ def test_a_solid_flame_is_a_closed_mesh_without_the_points_modifier(small_flames
     obj.iteron.flame.output = "MESH"
     SCHEDULER.run_now(obj)
     assert len(obj.data.polygons) > 100 and flame_write.MODIFIER not in obj.modifiers
-    assert "iteron_xform" not in obj.data.attributes
+    assert "iteron_xform" in obj.data.attributes                  # the transform densest around each vertex
 
 
 def test_changing_the_seed_makes_the_flame_stale(small_flames):

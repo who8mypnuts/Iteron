@@ -49,7 +49,8 @@ def _parser() -> argparse.ArgumentParser:
         sub.add_argument("--refine", type=int, default=2, help="Newton steps onto the true surface")
         sub.add_argument("--simplify", type=float, default=0.1, help="merge flat areas within this many voxels")
         sub.add_argument("--offset", type=float, default=None, help="surface offset, voxels")
-        sub.add_argument("--color", choices=tuple(CHANNELS), default="trap", help="what the vertex colours show")
+        sub.add_argument("--color", choices=("auto", "base") + tuple(CHANNELS), default="auto",
+                         help="what the vertex colours show (auto: a fragment's own colour if it has one, else trap)")
         if name == "mesh":
             sub.add_argument("--gpu", action="store_true", help="sample with moderngl (OpenGL 3.3) instead of numpy")
         else:
@@ -118,7 +119,10 @@ def drive(job, quiet: bool):
 def _write_mesh(args, result) -> int:
     from ..core.palette import sweep
     from .writers import write
-    colours = sweep(result.channels[:, CHANNELS[args.color]])
+    mode = args.color if args.color != "auto" else ("base" if result.base_colours is not None else "trap")
+    if mode == "base" and result.base_colours is None:
+        raise ValueError("--color base needs a fragment that provides baseColor")
+    colours = result.base_colours if mode == "base" else sweep(result.channels[:, CHANNELS[mode]])
     path = write(args.output, result.vertices, [result.quads, result.tris if result.tris is not None else []],
                  colours, result.normals)
     print(f"{path}: {len(result.vertices):,} vertices, {result.faces:,} faces, {result.seconds:.1f} s on the "
@@ -133,12 +137,24 @@ def _spec(args, entry, values, center=(0.0, 0.0, 0.0)):
                      args.simplify)
 
 
-def _gl_sampler():
+def _gl_sampler(textures: dict | None = None):
     from .gl_sampler import GlSampler, context
     ctx = context()
     if ctx is None:
         raise RuntimeError("no OpenGL 3.3 context: install moderngl (pip install moderngl) and a GPU driver or Mesa")
-    return GlSampler(ctx)
+    return GlSampler(ctx, textures)
+
+
+def load_image(path: Path):
+    """An image file as a `(height, width, 4)` float array, bottom row first (OpenGL's order); needs Pillow."""
+    try:
+        from PIL import Image
+    except ImportError as error:
+        raise RuntimeError("fragments with textures need Pillow (pip install pillow)") from error
+    import numpy as np
+    with Image.open(path) as image:
+        pixels = np.asarray(image.convert("RGBA"), dtype=np.float32) / 255.0
+    return np.ascontiguousarray(pixels[::-1])
 
 
 def mesh_formula(args) -> int:
@@ -155,13 +171,14 @@ def mesh_formula(args) -> int:
 
 
 def mesh_fragment(args) -> int:
-    from ..fragments.formula import build as build_fragment, embeddable
+    from ..fragments.formula import build as build_fragment, embeddable, texture_paths
     from ..jobs.pipeline import build
     path = Path(args.file)
     entry = build_fragment(embeddable(path, tuple(args.include)), path.stem, prefer_shims=True)
+    textures = {name: load_image(p) for name, p in texture_paths(entry, path, tuple(args.include)).items()}
     values = parse_sets(entry, args.set, args.preset or next(iter(entry.presets), None))
     center = entry.camera.target if entry.camera else (0.0, 0.0, 0.0)
-    return _write_mesh(args, drive(build(_spec(args, entry, values, center), _gl_sampler(), entry), args.quiet))
+    return _write_mesh(args, drive(build(_spec(args, entry, values, center), _gl_sampler(textures), entry), args.quiet))
 
 
 def mesh_flame(args) -> int:

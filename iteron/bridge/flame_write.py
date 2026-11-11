@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: MIT
 """A flame's geometry in Blender: a point cloud (with a Geometry Nodes modifier that turns the vertices into render
 points) or a density mesh, coloured from the flame's palette (`Col`), with the transform of each point
-(`iteron_xform`) kept as an attribute."""
+(`iteron_xform`) kept as an attribute — on a solid, the transform densest around each vertex. Materials: one, or one
+per transform (flame_materials.py)."""
 
 from __future__ import annotations
 
 import bpy
 import numpy as np
 
-from . import material
+from . import flame_materials
 from .mesh_write import attribute, fill
 
 POINTS_GROUP = "Iteron Points"
@@ -25,20 +26,30 @@ def write(obj, result) -> None:
         attribute(mesh, "iteron_xform", result.xform.astype(np.int32), "INT")
     elif "iteron_xform" in mesh.attributes:
         mesh.attributes.remove(mesh.attributes["iteron_xform"])
-    flame_material = material.ensure_flame(obj)
-    points = len(result.quads) == 0
+    apply_look(obj)
+    mesh.update()
+
+
+def apply_look(obj) -> None:
+    """Materials (one, or one per transform) and, for a point cloud, the points modifier; from the mesh as built,
+    so toggling per-transform materials needs no rebuild."""
+    mesh = obj.data
+    wanted = flame_materials.assign(obj)
+    points = len(mesh.polygons) == 0
     modifier = obj.modifiers.get(MODIFIER)
     if points:
         modifier = modifier or obj.modifiers.new(MODIFIER, "NODES")
-        modifier.node_group = points_group()
-        _set_input(modifier, "Material", flame_material)
+        if len(wanted) > 1:
+            modifier.node_group = flame_materials.points_group(obj, wanted)
+        else:
+            modifier.node_group = points_group()
+            _set_input(modifier, "Material", wanted[0])
         update_point_radius(obj)
         modifier.show_viewport = modifier.show_render = True
     else:
         if modifier is not None:
             obj.modifiers.remove(modifier)
         mesh.shade_smooth()
-    mesh.update()
 
 
 def update_point_radius(obj) -> None:

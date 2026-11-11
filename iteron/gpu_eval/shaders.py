@@ -18,26 +18,45 @@ _CACHE: dict[tuple, tuple[Any, Any]] = {}
 _QUAD = [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)]
 
 
+MAINS = {"grid": glsl.PROBE_MAIN, "points": glsl.POINTS_MAIN, "color": glsl.COLOR_MAIN}
+
+
 def probe(entry: Formula, values: dict[str, Any], mode: str = "grid"):
-    """`(shader, batch)` drawing `entry`'s probe over a full-screen quad."""
+    """`(shader, batch, samplers)` drawing `entry`'s probe over a full-screen quad: "grid" (voxels from the pixel
+    position), "points" (positions from a texture) or "color" (a fragment's `baseColor` at such points).
+    `samplers` are the kernel's own textures, bound from `glsl.TEXTURE_SLOT`."""
     key = (entry.id, entry.version, entry.static_key(values), mode)
     if key not in _CACHE:
         source = glsl.kernel_source(entry, values)
         info = gpu.types.GPUShaderCreateInfo()
         info.vertex_in(0, "VEC2", "pos")
-        if mode == "grid":
-            for type_, name in glsl.PROBE_CONSTANTS:
-                info.push_constant(type_, name)
-        else:
+        constants = glsl.PROBE_CONSTANTS if mode == "grid" else glsl.COLOR_CONSTANTS if mode == "color" else ()
+        for type_, name in constants:
+            info.push_constant(type_, name)
+        if mode != "grid":
             info.sampler(0, "FLOAT_2D", glsl.POINTS_SAMPLER)
+        declare_samplers(info, source)
         info.typedef_source(source.typedef)
         info.uniform_buf(0, glsl.STRUCT, glsl.UNIFORM)
         info.fragment_out(0, "VEC4", "fragColor")
         info.vertex_source("void main() { gl_Position = vec4(pos, 0.0, 1.0); }")
-        info.fragment_source(source.kernel + (glsl.PROBE_MAIN if mode == "grid" else glsl.POINTS_MAIN))
+        info.fragment_source(source.kernel + MAINS[mode])
         shader = gpu.shader.create_from_info(info)
-        _CACHE[key] = (shader, batch_for_shader(shader, "TRI_STRIP", {"pos": _QUAD}))
+        _CACHE[key] = (shader, batch_for_shader(shader, "TRI_STRIP", {"pos": _QUAD}), source.samplers)
     return _CACHE[key]
+
+
+def declare_samplers(info, source: glsl.KernelSource) -> None:
+    for slot, name in enumerate(source.samplers, start=glsl.TEXTURE_SLOT):
+        info.sampler(slot, "FLOAT_2D", name)
+
+
+def bind_samplers(shader, samplers: tuple[str, ...], textures: dict) -> None:
+    """Bind a kernel's textures (`FragmentError`-like `RuntimeError` when one has no image)."""
+    for name in samplers:
+        if name not in textures:
+            raise RuntimeError(f"no image for the texture {name!r}")
+        shader.uniform_sampler(name, textures[name])
 
 
 def float_buffer(array: np.ndarray):
